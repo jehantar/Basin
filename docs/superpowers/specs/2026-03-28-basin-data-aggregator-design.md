@@ -538,3 +538,66 @@ The reservation bot at `/opt/reservebot/` remains completely untouched.
 - Web UI or dashboard (CLI only for v1)
 - Automated deployment/CI (manual `docker compose up` for now)
 - Data retention policies or archiving
+
+## Consolidated Improvement Plan (Integrated)
+
+This section consolidates the strongest ideas into one implementation plan: protect reliability first, then improve data correctness and operations, then harden for scale.
+
+### Priority 0 — Must-have before/at first deployment
+
+1. **Reliability guardrails**
+   - Add container `healthcheck` probes for `postgres` and `webhook`; gate startup on readiness instead of process start only.
+   - Include run-level correlation IDs (`collector_run_id`) in logs and persist them in `basin.collector_runs` metadata for fast debugging.
+   - Add malformed webhook dead-letter storage (`/data/healthkit/failed/`) with parse error context for replay.
+
+2. **Financial data correctness**
+   - Change monetary columns from `DOUBLE PRECISION` to `NUMERIC(18,4)` (or tighter) in Schwab/Teller tables.
+   - Keep quantity-like fields (`shares`, workout durations/distances) as float/integer where appropriate.
+
+3. **Security baseline**
+   - Run app containers as non-root.
+   - Mount Teller cert/key read-only with strict permissions (`0400` owner-read only).
+   - Keep 1Password runtime secret resolution as the only secret-loading path in production.
+
+4. **Operational safety**
+   - Enable Docker log rotation (`max-size`, `max-file`) to avoid disk exhaustion.
+   - Add daily encrypted Postgres backup (`pg_dump`) with retention + monthly restore verification.
+
+### Priority 1 — High-value improvements soon after go-live
+
+1. **Schema/query hardening**
+   - Add targeted indexes:
+     - `schwab.transactions(account_id, transacted_at DESC)`
+     - `teller.transactions(account_id, date DESC)`
+     - `healthkit.metrics(metric_type, recorded_at DESC)`
+     - `basin.collector_runs(collector, started_at DESC)`
+   - Make foreign-key delete behavior explicit (`ON DELETE RESTRICT` by default; `CASCADE` only when intended).
+   - Add missing `NOT NULL` constraints where source APIs guarantee presence.
+
+2. **Ingestion robustness**
+   - Add checksum + row-count tracking to `basin.hevy_imports` to detect same-filename changed files.
+   - For large HealthKit XML imports, load to staging then merge/upsert in batches.
+   - Add checkpoint state for paginated API collectors (cursor/timestamp watermark) so partial failures resume cleanly.
+
+3. **Observability and alerting**
+   - Emit structured JSON logs for collectors/webhook.
+   - Track per-collector metrics: run duration, rows upserted, success/failure count, and token-expiry horizon.
+   - Define simple freshness SLOs (e.g., Schwab <24h stale) and alert when violated.
+
+### Priority 2 — Scale and downstream-consumer readiness
+
+1. **Scheduling maturity**
+   - Keep current cron schedule, but document UTC/ET mapping + DST implications explicitly.
+   - Add random jitter for non-critical jobs to reduce burst pressure.
+   - Consider a container-native scheduler (e.g., `supercronic`) once observability requirements grow.
+
+2. **Access-layer stabilization**
+   - Add canonical consumer views in `basin` schema (example: `basin.daily_net_worth`, `basin.workout_summary`).
+   - Version the consumer contract (`v1` views/functions) to avoid breaking downstream tools.
+   - Add data-quality checks (duplicate external IDs, invalid timestamps, out-of-range numeric values).
+
+### Explicit tradeoffs (so scope stays realistic)
+
+- Keep Wealthfront out of v1 as already defined.
+- Keep CLI-only operations in v1; avoid building a web dashboard until collectors are stable.
+- Keep deployment manual initially, but require backup + restore drill before calling the system production-ready.
