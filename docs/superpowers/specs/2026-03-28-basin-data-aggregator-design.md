@@ -71,6 +71,7 @@ services:
       SCHWAB_CLIENT_SECRET: ${SCHWAB_CLIENT_SECRET}
       TELLER_CERT_PATH: /certs/teller/certificate.pem
       TELLER_KEY_PATH: /certs/teller/private_key.pem
+      TELLER_ACCESS_TOKEN: ${TELLER_ACCESS_TOKEN}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
 
@@ -426,7 +427,8 @@ Each collector is invoked as a standalone script: `python -m collectors.hevy`
 - Required approximately every 7 days when refresh token expires
 
 **Teller:**
-- Uses mTLS (client certificate + private key) for authentication — no token refresh needed
+- Uses mTLS (client certificate + private key) plus a per-enrollment access token for authentication
+- Access token is issued once during Teller Connect enrollment and is long-lived (no refresh needed)
 - Fetch accounts, balances, transactions
 - Upsert into `teller.institutions`, `teller.accounts`, `teller.balances`, `teller.transactions`
 - Teller enrollment (linking bank accounts) is done once via Teller Connect in a browser
@@ -467,7 +469,9 @@ Re-running any collector with the same data produces zero duplicates and updates
 
 ## CLI Health Dashboard
 
-Invoked as `python -m cli.health` (or aliased to `basin health`).
+Run from the host via: `docker compose exec collector python -m cli.health`
+
+For convenience, add a shell alias: `alias basin='docker compose -f /opt/basin/docker-compose.yml exec collector python -m cli.health'`
 
 ```
 $ basin health
@@ -512,7 +516,9 @@ Before deploying Basin, the VM needs:
 2. **1GB swap file** — safety net for memory spikes (`fallocate -l 1G /swapfile`)
 3. **Basin project directory** — `/opt/basin/` owned by a dedicated `basin` user
 4. **Teller certificates** — stored in `/opt/basin/certs/teller/` (outside git)
-5. **1Password `.env` file** — at `/opt/basin/.env` with `op://` references
+5. **Teller enrollment** — complete Teller Connect once in a browser to get the access token
+6. **Schwab OAuth redirect URI** — register `http://100.125.126.42:8075/schwab/callback` at developer.schwab.com
+7. **1Password `.env` file** — at `/opt/basin/.env` with `op://` references
 
 The reservation bot at `/opt/reservebot/` remains completely untouched.
 
