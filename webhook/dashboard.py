@@ -71,7 +71,71 @@ def serve_dashboard():
 @router.get("/api/fitness/running")
 def get_running_data(start: str | None = None, end: str | None = None):
     start_date, end_date = _parse_date_range(start, end)
-    return {**_response_metadata(start_date, end_date), "runs": [], "summary": {"total_runs": 0, "avg_speed_mph": None, "latest_speed_mph": None, "latest_pace_min_per_mile": None}}
+
+    with get_session() as session:
+        speed_rows = session.execute(text("""
+            SELECT (recorded_at AT TIME ZONE 'UTC')::date as date,
+                   round(avg(value)::numeric, 2) as avg_speed
+            FROM healthkit.metrics
+            WHERE metric_type = 'running_speed'
+              AND (recorded_at AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+            GROUP BY (recorded_at AT TIME ZONE 'UTC')::date
+            ORDER BY date
+        """), {"start": start_date, "end": end_date}).fetchall()
+
+        power_rows = session.execute(text("""
+            SELECT (recorded_at AT TIME ZONE 'UTC')::date as date,
+                   round(avg(value)::numeric, 0) as avg_power
+            FROM healthkit.metrics
+            WHERE metric_type = 'running_power'
+              AND (recorded_at AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+            GROUP BY (recorded_at AT TIME ZONE 'UTC')::date
+        """), {"start": start_date, "end": end_date}).fetchall()
+        power_by_date = {str(r[0]): float(r[1]) for r in power_rows}
+
+        dur_rows = session.execute(text("""
+            SELECT (start_time AT TIME ZONE 'UTC')::date as date,
+                   round((duration_sec / 60.0)::numeric, 1) as duration_min
+            FROM healthkit.workouts
+            WHERE workout_type = 'Running'
+              AND (start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+        """), {"start": start_date, "end": end_date}).fetchall()
+        dur_by_date = {str(r[0]): float(r[1]) for r in dur_rows}
+
+        runs = []
+        for row in speed_rows:
+            d = str(row[0])
+            speed = float(row[1])
+            runs.append({
+                "date": d,
+                "avg_speed_mph": speed,
+                "duration_min": dur_by_date.get(d),
+                "avg_power": power_by_date.get(d),
+            })
+
+        total_runs = len(runs)
+        avg_speed = round(sum(r["avg_speed_mph"] for r in runs) / total_runs, 2) if total_runs else None
+        latest_speed = runs[-1]["avg_speed_mph"] if runs else None
+        latest_pace = _speed_to_pace(latest_speed) if latest_speed else None
+
+        summary = {
+            "total_runs": total_runs,
+            "avg_speed_mph": avg_speed,
+            "latest_speed_mph": latest_speed,
+            "latest_pace_min_per_mile": latest_pace,
+        }
+
+    return {**_response_metadata(start_date, end_date), "runs": runs, "summary": summary}
+
+
+def _speed_to_pace(speed_mph: float) -> str:
+    """Convert speed in mi/hr to pace as 'mm:ss' per mile."""
+    if speed_mph <= 0:
+        return "---"
+    min_per_mile = 60.0 / speed_mph
+    minutes = int(min_per_mile)
+    seconds = int((min_per_mile - minutes) * 60)
+    return f"{minutes}:{seconds:02d}"
 
 
 @router.get("/api/fitness/vo2max")
