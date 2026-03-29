@@ -73,53 +73,58 @@ def get_running_data(start: str | None = None, end: str | None = None):
     start_date, end_date = _parse_date_range(start, end)
 
     with get_session() as session:
-        speed_rows = session.execute(text("""
-            SELECT (recorded_at AT TIME ZONE 'UTC')::date as date,
-                   round(avg(value)::numeric, 2) as avg_speed
-            FROM healthkit.metrics
-            WHERE metric_type = 'running_speed'
-              AND (recorded_at AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
-            GROUP BY (recorded_at AT TIME ZONE 'UTC')::date
-            ORDER BY date
-        """), {"start": start_date, "end": end_date}).fetchall()
-
-        power_rows = session.execute(text("""
-            SELECT (recorded_at AT TIME ZONE 'UTC')::date as date,
-                   round(avg(value)::numeric, 0) as avg_power
-            FROM healthkit.metrics
-            WHERE metric_type = 'running_power'
-              AND (recorded_at AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
-            GROUP BY (recorded_at AT TIME ZONE 'UTC')::date
-        """), {"start": start_date, "end": end_date}).fetchall()
-        power_by_date = {str(r[0]): float(r[1]) for r in power_rows}
-
-        dur_rows = session.execute(text("""
+        # Use workout dates as source of truth for "a run happened"
+        # then join speed/power metrics by matching the workout's time window
+        workout_rows = session.execute(text("""
             SELECT (start_time AT TIME ZONE 'UTC')::date as date,
-                   round((duration_sec / 60.0)::numeric, 1) as duration_min
+                   round((duration_sec / 60.0)::numeric, 1) as duration_min,
+                   start_time, end_time
             FROM healthkit.workouts
             WHERE workout_type = 'Running'
               AND (start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+            ORDER BY start_time
         """), {"start": start_date, "end": end_date}).fetchall()
-        dur_by_date = {str(r[0]): float(r[1]) for r in dur_rows}
 
         runs = []
-        for row in speed_rows:
+        for row in workout_rows:
             d = str(row[0])
-            speed = float(row[1])
-            duration_min = dur_by_date.get(d)
+            duration_min = float(row[1]) if row[1] else None
+            w_start = row[2]
+            w_end = row[3]
+
+            # Get avg speed during this workout's time window
+            speed_row = session.execute(text("""
+                SELECT round(avg(value)::numeric, 2) as avg_speed
+                FROM healthkit.metrics
+                WHERE metric_type = 'running_speed'
+                  AND recorded_at BETWEEN :ws AND :we
+            """), {"ws": w_start, "we": w_end}).fetchone()
+            speed = float(speed_row[0]) if speed_row and speed_row[0] else None
+
+            # Get avg power during this workout's time window
+            power_row = session.execute(text("""
+                SELECT round(avg(value)::numeric, 0) as avg_power
+                FROM healthkit.metrics
+                WHERE metric_type = 'running_power'
+                  AND recorded_at BETWEEN :ws AND :we
+            """), {"ws": w_start, "we": w_end}).fetchone()
+            avg_power = float(power_row[0]) if power_row and power_row[0] else None
+
             # Derive distance: speed (mi/hr) * duration (hr)
-            distance_mi = round(speed * (duration_min / 60.0), 2) if duration_min else None
+            distance_mi = round(speed * (duration_min / 60.0), 2) if speed and duration_min else None
+
             runs.append({
                 "date": d,
                 "avg_speed_mph": speed,
                 "duration_min": duration_min,
                 "distance_mi": distance_mi,
-                "avg_power": power_by_date.get(d),
+                "avg_power": avg_power,
             })
 
         total_runs = len(runs)
-        avg_speed = round(sum(r["avg_speed_mph"] for r in runs) / total_runs, 2) if total_runs else None
-        latest_speed = runs[-1]["avg_speed_mph"] if runs else None
+        speeds = [r["avg_speed_mph"] for r in runs if r["avg_speed_mph"]]
+        avg_speed = round(sum(speeds) / len(speeds), 2) if speeds else None
+        latest_speed = runs[-1]["avg_speed_mph"] if runs and runs[-1]["avg_speed_mph"] else None
         latest_pace = _speed_to_pace(latest_speed) if latest_speed else None
         total_distance = round(sum(r["distance_mi"] for r in runs if r["distance_mi"]), 2) if runs else None
 
