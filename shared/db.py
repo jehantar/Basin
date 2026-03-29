@@ -73,12 +73,14 @@ def bulk_upsert(
     if update_columns is None:
         update_columns = [c for c in columns if c not in conflict_columns]
 
-    # Safety check for dynamic SQL identifiers in table/column names
-    safe_ident = __import__("re").compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$")
-    if not safe_ident.match(table):
+    # Safety check for dynamic SQL identifiers
+    import re
+    safe_table = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$")
+    safe_column = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+    if not safe_table.match(table):
         raise ValueError(f"Invalid table name: {table}")
     for name in [*columns, *conflict_columns, *update_columns]:
-        if not safe_ident.match(name):
+        if not safe_column.match(name):
             raise ValueError(f"Invalid column name: {name}")
 
     placeholders = ", ".join(f":{c}" for c in columns)

@@ -2,7 +2,6 @@
 
 import os
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
@@ -54,6 +53,7 @@ def session(engine):
 
 @pytest.fixture
 def client(session, monkeypatch):
+    from fastapi.testclient import TestClient
     monkeypatch.setattr("webhook.server.get_session", lambda: _FakeCtx(session))
     from webhook.server import app
     return TestClient(app)

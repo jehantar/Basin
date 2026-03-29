@@ -149,6 +149,10 @@ class TellerCollector(BaseCollector):
                     {"aid": acct_row["account_id"]},
                 ).scalar()
 
+                if acct_db_id is None:
+                    logger.warning(f"Skipping account {acct_row['account_id']}: failed to resolve DB id")
+                    continue
+
                 # Step 2: Fetch balances
                 try:
                     resp = client.get(f"/accounts/{acct_row['account_id']}/balances")
