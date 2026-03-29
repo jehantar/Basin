@@ -106,10 +106,14 @@ def get_running_data(start: str | None = None, end: str | None = None):
         for row in speed_rows:
             d = str(row[0])
             speed = float(row[1])
+            duration_min = dur_by_date.get(d)
+            # Derive distance: speed (mi/hr) * duration (hr)
+            distance_mi = round(speed * (duration_min / 60.0), 2) if duration_min else None
             runs.append({
                 "date": d,
                 "avg_speed_mph": speed,
-                "duration_min": dur_by_date.get(d),
+                "duration_min": duration_min,
+                "distance_mi": distance_mi,
                 "avg_power": power_by_date.get(d),
             })
 
@@ -117,12 +121,14 @@ def get_running_data(start: str | None = None, end: str | None = None):
         avg_speed = round(sum(r["avg_speed_mph"] for r in runs) / total_runs, 2) if total_runs else None
         latest_speed = runs[-1]["avg_speed_mph"] if runs else None
         latest_pace = _speed_to_pace(latest_speed) if latest_speed else None
+        total_distance = round(sum(r["distance_mi"] for r in runs if r["distance_mi"]), 2) if runs else None
 
         summary = {
             "total_runs": total_runs,
             "avg_speed_mph": avg_speed,
             "latest_speed_mph": latest_speed,
             "latest_pace_min_per_mile": latest_pace,
+            "total_distance_mi": total_distance,
         }
 
     return {**_response_metadata(start_date, end_date), "runs": runs, "summary": summary}

@@ -280,6 +280,7 @@
       <thead>
         <tr>
           <th>Date</th>
+          <th>Distance</th>
           <th>Pace</th>
           <th>Speed</th>
           <th>Duration</th>
@@ -539,6 +540,10 @@
       var tdDate = document.createElement('td');
       tdDate.textContent = fmtDate(r.date);
       tr.appendChild(tdDate);
+
+      var tdDist = document.createElement('td');
+      tdDist.textContent = r.distance_mi != null ? r.distance_mi.toFixed(2) + ' mi' : '---';
+      tr.appendChild(tdDist);
 
       var tdPace = document.createElement('td');
       tdPace.textContent = speedToPace(r.avg_speed_mph) + ' /mi';
