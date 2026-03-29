@@ -847,7 +847,7 @@
 
     if (months === 0) {
       endInput.value = isoToday();
-      startInput.value = isoMonthsAgo(60); // 5 years (API max)
+      startInput.value = isoMonthsAgo(59); // Just under 5-year API max
     } else {
       endInput.value = isoToday();
       startInput.value = isoMonthsAgo(months);
