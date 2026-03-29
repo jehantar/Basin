@@ -1,4 +1,873 @@
 <!DOCTYPE html>
-<html><head><title>Basin Fitness</title></head>
-<body><h1>Basin Fitness Dashboard</h1><p>Loading...</p></body>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Basin — Fitness</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  a { color: #3b82f6; }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+  .header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #f1f5f9;
+  }
+  .header .sync-info {
+    font-size: 0.85rem;
+    color: #64748b;
+  }
+
+  /* Cards grid */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+  .card:hover { border-color: #334155; }
+  .card:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+  .card.active-running { border-color: #3b82f6; box-shadow: 0 0 20px rgba(59,130,246,0.15); }
+  .card.active-vo2max  { border-color: #a78bfa; box-shadow: 0 0 20px rgba(167,139,250,0.15); }
+  .card.active-strength { border-color: #22c55e; box-shadow: 0 0 20px rgba(34,197,94,0.15); }
+
+  .card-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+  .card-label.running  { color: #3b82f6; }
+  .card-label.vo2max   { color: #a78bfa; }
+  .card-label.strength { color: #22c55e; }
+
+  .card-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    line-height: 1.1;
+  }
+  .card-sub {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-top: 4px;
+    margin-bottom: 12px;
+  }
+  .card-trend {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 8px;
+  }
+  .sparkline { height: 40px; }
+
+  /* Detail panel */
+  .detail-panel {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 24px;
+    min-height: 400px;
+  }
+
+  /* Filters */
+  .filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .preset-btn {
+    background: #334155;
+    color: #94a3b8;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    outline: none;
+  }
+  .preset-btn:hover { background: #475569; color: #e2e8f0; }
+  .preset-btn:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+  .preset-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+
+  .date-input {
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    outline: none;
+  }
+  .date-input:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+  .filters-sep { color: #475569; margin: 0 4px; }
+
+  /* Exercise dropdown */
+  .exercise-select {
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    margin-left: auto;
+    outline: none;
+  }
+  .exercise-select:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
+
+  /* Chart area */
+  .chart-area { width: 100%; min-height: 320px; }
+
+  /* Runs table */
+  .runs-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    font-size: 0.85rem;
+  }
+  .runs-table th {
+    text-align: left;
+    color: #64748b;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-bottom: 1px solid #334155;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+  }
+  .runs-table td {
+    padding: 8px 12px;
+    color: #cbd5e1;
+    border-bottom: 1px solid #1e293b;
+  }
+  .runs-table tr:hover td { background: #0f172a; }
+
+  /* Empty state */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #64748b;
+    text-align: center;
+  }
+  .empty-state p { margin-bottom: 16px; font-size: 1rem; }
+  .empty-state button {
+    background: #334155;
+    color: #e2e8f0;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 8px 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .empty-state button:hover { background: #475569; }
+
+  /* Error banner */
+  .error-banner {
+    background: #451a2a;
+    border: 1px solid #991b1b;
+    border-radius: 8px;
+    padding: 12px 20px;
+    margin-bottom: 20px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+  }
+  .error-banner.visible { display: flex; }
+  .error-banner .error-msg { flex: 1; color: #fca5a5; font-size: 0.9rem; }
+  .error-banner button {
+    background: #991b1b;
+    color: #fca5a5;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .error-banner button:hover { background: #b91c1c; }
+
+  /* Hide panels */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .cards { grid-template-columns: 1fr; }
+    .filters { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Basin &mdash; Fitness</h1>
+  <span class="sync-info" id="syncInfo">Last sync: &mdash;</span>
+</div>
+
+<div class="error-banner" id="errorBanner">
+  <span class="error-msg" id="errorMsg"></span>
+  <button id="retryBtn" tabindex="0">Retry</button>
+</div>
+
+<div class="cards">
+  <div class="card" id="cardRunning" tabindex="0" role="button" aria-label="Running Pace">
+    <div class="card-label running">Running Pace</div>
+    <div class="card-value" id="runningValue">Loading...</div>
+    <div class="card-sub" id="runningSub">&nbsp;</div>
+    <div class="card-trend" id="runningTrend">&nbsp;</div>
+    <div class="sparkline" id="sparkRunning"></div>
+  </div>
+  <div class="card" id="cardVo2max" tabindex="0" role="button" aria-label="VO2 Max">
+    <div class="card-label vo2max">VO2 Max</div>
+    <div class="card-value" id="vo2maxValue">Loading...</div>
+    <div class="card-sub" id="vo2maxSub">&nbsp;</div>
+    <div class="card-trend" id="vo2maxTrend">&nbsp;</div>
+    <div class="sparkline" id="sparkVo2max"></div>
+  </div>
+  <div class="card" id="cardStrength" tabindex="0" role="button" aria-label="Strength">
+    <div class="card-label strength">Strength</div>
+    <div class="card-value" id="strengthValue">Loading...</div>
+    <div class="card-sub" id="strengthSub">&nbsp;</div>
+    <div class="card-trend" id="strengthTrend">&nbsp;</div>
+    <div class="sparkline" id="sparkStrength"></div>
+  </div>
+</div>
+
+<div class="detail-panel">
+  <div class="filters">
+    <button class="preset-btn" data-months="3" tabindex="0">3M</button>
+    <button class="preset-btn" data-months="6" tabindex="0">6M</button>
+    <button class="preset-btn" data-months="12" tabindex="0">1Y</button>
+    <button class="preset-btn" data-months="0" tabindex="0">All</button>
+    <span class="filters-sep">|</span>
+    <input type="date" class="date-input" id="startDate" tabindex="0" aria-label="Start date">
+    <span class="filters-sep">&ndash;</span>
+    <input type="date" class="date-input" id="endDate" tabindex="0" aria-label="End date">
+    <select class="exercise-select" id="exerciseSelect" tabindex="0" aria-label="Exercise filter" style="display:none;">
+    </select>
+  </div>
+
+  <div class="panel" id="panelRunning">
+    <div class="chart-area" id="chartRunning"></div>
+    <table class="runs-table" id="runsTable">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Pace</th>
+          <th>Speed</th>
+          <th>Duration</th>
+          <th>Avg Power</th>
+        </tr>
+      </thead>
+      <tbody id="runsBody"></tbody>
+    </table>
+  </div>
+
+  <div class="panel" id="panelVo2max">
+    <div class="chart-area" id="chartVo2max"></div>
+  </div>
+
+  <div class="panel" id="panelStrength">
+    <div class="chart-area" id="chartStrength"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // -- State --
+  var activePanel = 'running';
+  var runData = null;
+  var vo2Data = null;
+  var strData = null;
+  var activePreset = null;
+
+  // -- DOM refs --
+  function $(id) { return document.getElementById(id); }
+  var cardRunning  = $('cardRunning');
+  var cardVo2max   = $('cardVo2max');
+  var cardStrength = $('cardStrength');
+  var startInput   = $('startDate');
+  var endInput     = $('endDate');
+  var exSelect     = $('exerciseSelect');
+  var errorBanner  = $('errorBanner');
+  var errorMsg     = $('errorMsg');
+  var retryBtn     = $('retryBtn');
+  var syncInfo     = $('syncInfo');
+
+  // -- Helpers --
+  function clearChildren(el) {
+    while (el.firstChild) { el.removeChild(el.firstChild); }
+  }
+
+  function fmtDate(iso) {
+    var d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function speedToPace(mph) {
+    if (!mph || mph <= 0) return '---';
+    var minPerMi = 60 / mph;
+    var mins = Math.floor(minPerMi);
+    var secs = Math.round((minPerMi - mins) * 60);
+    if (secs === 60) return (mins + 1) + ':00';
+    return mins + ':' + String(secs).padStart(2, '0');
+  }
+
+  function isoToday() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function isoMonthsAgo(m) {
+    var d = new Date();
+    d.setMonth(d.getMonth() - m);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorBanner.classList.add('visible');
+  }
+
+  function hideError() {
+    errorBanner.classList.remove('visible');
+  }
+
+  function showEmpty(containerId) {
+    var el = $(containerId);
+    clearChildren(el);
+    var wrap = document.createElement('div');
+    wrap.className = 'empty-state';
+    var p = document.createElement('p');
+    p.textContent = 'No data in selected range';
+    var btn = document.createElement('button');
+    btn.textContent = 'Show all time';
+    btn.tabIndex = 0;
+    btn.addEventListener('click', function() { setPreset(0); });
+    wrap.appendChild(p);
+    wrap.appendChild(btn);
+    el.appendChild(wrap);
+  }
+
+  // -- Sparkline renderer --
+  function renderSparkline(elId, values, color) {
+    var el = $(elId);
+    if (!values || values.length === 0) {
+      clearChildren(el);
+      return;
+    }
+    Plotly.newPlot(el, [{
+      y: values,
+      type: 'bar',
+      marker: { color: color, opacity: 0.7 },
+      hoverinfo: 'none'
+    }], {
+      margin: { t: 0, b: 0, l: 0, r: 0 },
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      xaxis: { visible: false },
+      yaxis: { visible: false },
+      height: 40,
+      width: el.offsetWidth || 200
+    }, { staticPlot: true, responsive: true, displayModeBar: false });
+  }
+
+  // -- Plotly layout base --
+  function baseLayout(title, xTitle, yTitle, extra) {
+    var layout = {
+      paper_bgcolor: '#1e293b',
+      plot_bgcolor: '#1e293b',
+      font: { color: '#94a3b8', family: 'system-ui, -apple-system, sans-serif' },
+      title: { text: title, font: { size: 16, color: '#e2e8f0' } },
+      xaxis: {
+        title: xTitle,
+        gridcolor: '#334155',
+        linecolor: '#334155',
+        tickfont: { color: '#94a3b8' }
+      },
+      yaxis: {
+        title: yTitle,
+        gridcolor: '#334155',
+        linecolor: '#334155',
+        tickfont: { color: '#94a3b8' }
+      },
+      margin: { t: 50, b: 50, l: 60, r: 20 },
+      hovermode: 'x unified'
+    };
+    if (extra) { Object.keys(extra).forEach(function(k) { layout[k] = extra[k]; }); }
+    return layout;
+  }
+
+  var plotConfig = { responsive: true, displayModeBar: false };
+
+  // -- Card updates --
+  function updateRunningCard() {
+    if (!runData) return;
+    var s = runData.summary;
+    if (s.latest_speed_mph != null) {
+      $('runningValue').textContent = s.latest_pace_min_per_mile + ' /mi';
+      $('runningSub').textContent = s.latest_speed_mph.toFixed(2) + ' mi/hr \u00b7 ' + s.total_runs + ' runs';
+    } else {
+      $('runningValue').textContent = '---';
+      $('runningSub').textContent = 'No runs in range';
+    }
+    var speeds = runData.runs.map(function(r) { return r.avg_speed_mph; });
+    if (speeds.length >= 2) {
+      var recent = speeds.slice(-5);
+      var older  = speeds.slice(0, Math.max(1, speeds.length - 5));
+      var avgRecent = recent.reduce(function(a,b) { return a+b; }, 0) / recent.length;
+      var avgOlder  = older.reduce(function(a,b) { return a+b; }, 0) / older.length;
+      var pct = ((avgRecent - avgOlder) / avgOlder * 100).toFixed(1);
+      $('runningTrend').textContent = (pct >= 0 ? '+' : '') + pct + '% vs earlier runs';
+    } else {
+      $('runningTrend').textContent = '';
+    }
+    renderSparkline('sparkRunning', speeds.slice(-20), '#3b82f6');
+  }
+
+  function updateVo2maxCard() {
+    if (!vo2Data) return;
+    var s = vo2Data.summary;
+    if (s.latest != null) {
+      $('vo2maxValue').textContent = s.latest.toFixed(1);
+      $('vo2maxSub').textContent = 'Peak: ' + (s.peak != null ? s.peak.toFixed(1) : '---') + ' mL/kg/min';
+    } else {
+      $('vo2maxValue').textContent = '---';
+      $('vo2maxSub').textContent = 'No readings in range';
+    }
+    var vals = vo2Data.readings.map(function(r) { return r.vo2max; });
+    if (vals.length >= 2) {
+      var diff = (vals[vals.length - 1] - vals[0]).toFixed(1);
+      $('vo2maxTrend').textContent = (diff >= 0 ? '+' : '') + diff + ' over range';
+    } else {
+      $('vo2maxTrend').textContent = '';
+    }
+    renderSparkline('sparkVo2max', vals.slice(-20), '#a78bfa');
+  }
+
+  function updateStrengthCard() {
+    if (!strData) return;
+    var prs = strData.prs;
+    if (prs.length > 0) {
+      var best = prs[0];
+      for (var i = 1; i < prs.length; i++) {
+        if (prs[i].max_lbs > best.max_lbs) best = prs[i];
+      }
+      $('strengthValue').textContent = best.max_lbs + ' lbs';
+      $('strengthSub').textContent = best.exercise;
+    } else {
+      $('strengthValue').textContent = '---';
+      $('strengthSub').textContent = 'No PRs in range';
+    }
+    var byDate = {};
+    strData.sets.forEach(function(s) {
+      if (s.set_type !== 'warmup' && s.weight_lbs != null) {
+        byDate[s.date] = Math.max(byDate[s.date] || 0, s.weight_lbs);
+      }
+    });
+    var dates = Object.keys(byDate).sort();
+    var vals = dates.map(function(d) { return byDate[d]; });
+    $('strengthTrend').textContent = strData.exercises.length + ' exercises tracked';
+    renderSparkline('sparkStrength', vals.slice(-20), '#22c55e');
+  }
+
+  // -- Panel rendering --
+  function renderRunningPanel() {
+    var container = $('chartRunning');
+    var tbody = $('runsBody');
+    if (!runData || runData.runs.length === 0) {
+      showEmpty('chartRunning');
+      clearChildren(tbody);
+      return;
+    }
+    var runs = runData.runs;
+    var dates  = runs.map(function(r) { return r.date; });
+    var speeds = runs.map(function(r) { return r.avg_speed_mph; });
+    var customText = runs.map(function(r) {
+      return 'Pace: ' + speedToPace(r.avg_speed_mph) +
+        (r.duration_min != null ? ' | Dur: ' + r.duration_min.toFixed(1) + 'm' : '') +
+        (r.avg_power != null ? ' | Pwr: ' + r.avg_power + 'W' : '');
+    });
+
+    Plotly.newPlot(container, [{
+      x: dates,
+      y: speeds,
+      type: 'scatter',
+      mode: 'lines+markers',
+      fill: 'tozeroy',
+      fillcolor: 'rgba(59,130,246,0.1)',
+      line: { color: '#3b82f6', width: 2 },
+      marker: { color: '#3b82f6', size: 5 },
+      text: customText,
+      hovertemplate: '%{x}<br>Speed: %{y:.2f} mi/hr<br>%{text}<extra></extra>'
+    }], baseLayout('Running Performance', 'Date', 'Speed (mi/hr)'), plotConfig);
+
+    // Recent runs table
+    clearChildren(tbody);
+    var recent = runs.slice(-5).reverse();
+    recent.forEach(function(r) {
+      var tr = document.createElement('tr');
+
+      var tdDate = document.createElement('td');
+      tdDate.textContent = fmtDate(r.date);
+      tr.appendChild(tdDate);
+
+      var tdPace = document.createElement('td');
+      tdPace.textContent = speedToPace(r.avg_speed_mph) + ' /mi';
+      tr.appendChild(tdPace);
+
+      var tdSpeed = document.createElement('td');
+      tdSpeed.textContent = r.avg_speed_mph.toFixed(2) + ' mi/hr';
+      tr.appendChild(tdSpeed);
+
+      var tdDur = document.createElement('td');
+      tdDur.textContent = r.duration_min != null ? r.duration_min.toFixed(1) + ' min' : '---';
+      tr.appendChild(tdDur);
+
+      var tdPower = document.createElement('td');
+      tdPower.textContent = r.avg_power != null ? r.avg_power + ' W' : '---';
+      tr.appendChild(tdPower);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderVo2maxPanel() {
+    var container = $('chartVo2max');
+    if (!vo2Data || vo2Data.readings.length === 0) {
+      showEmpty('chartVo2max');
+      return;
+    }
+    var readings = vo2Data.readings;
+    var dates = readings.map(function(r) { return r.date; });
+    var vals  = readings.map(function(r) { return r.vo2max; });
+    var peak  = vo2Data.summary.peak;
+
+    var traces = [{
+      x: dates,
+      y: vals,
+      type: 'scatter',
+      mode: 'lines+markers',
+      line: { color: '#a78bfa', width: 2 },
+      marker: { color: '#a78bfa', size: 6 },
+      hovertemplate: '%{x}<br>VO2 Max: %{y:.1f} mL/kg/min<extra></extra>'
+    }];
+
+    var shapes = [];
+    var annotations = [];
+    if (peak != null) {
+      shapes.push({
+        type: 'line',
+        xref: 'paper',
+        x0: 0, x1: 1,
+        y0: peak, y1: peak,
+        line: { color: '#a78bfa', width: 1, dash: 'dash' }
+      });
+      annotations.push({
+        xref: 'paper', x: 1,
+        y: peak,
+        text: 'Peak: ' + peak.toFixed(1),
+        showarrow: false,
+        font: { color: '#a78bfa', size: 11 },
+        xanchor: 'right',
+        yanchor: 'bottom'
+      });
+    }
+
+    Plotly.newPlot(container, traces,
+      baseLayout('VO2 Max Trend', 'Date', 'mL/kg/min', { shapes: shapes, annotations: annotations }),
+      plotConfig
+    );
+  }
+
+  function renderStrengthPanel() {
+    var container = $('chartStrength');
+    if (!strData || strData.sets.length === 0) {
+      showEmpty('chartStrength');
+      return;
+    }
+
+    var selectedEx = exSelect.value;
+    var filtered = selectedEx
+      ? strData.sets.filter(function(s) { return s.exercise === selectedEx; })
+      : strData.sets;
+
+    if (filtered.length === 0) {
+      showEmpty('chartStrength');
+      return;
+    }
+
+    // Build PR lookup: exercise+date+weight -> is PR
+    var prSet = {};
+    strData.prs.forEach(function(pr) {
+      prSet[pr.exercise + '|' + pr.date + '|' + pr.max_lbs] = true;
+    });
+
+    // Split into normal, warmup, PR
+    var normal = { x: [], y: [], text: [] };
+    var warmup = { x: [], y: [], text: [] };
+    var prMarkers = { x: [], y: [], text: [] };
+
+    filtered.forEach(function(s) {
+      if (s.weight_lbs == null) return;
+      var label = s.exercise + ' | ' + s.reps + ' reps | Set ' + (s.set_index + 1) + ' | ' + s.set_type;
+      if (s.set_type === 'warmup') {
+        warmup.x.push(s.date);
+        warmup.y.push(s.weight_lbs);
+        warmup.text.push(label);
+      } else {
+        normal.x.push(s.date);
+        normal.y.push(s.weight_lbs);
+        normal.text.push(label);
+      }
+      // Check if this set matches a PR
+      var key = s.exercise + '|' + s.date + '|' + s.weight_lbs;
+      if (prSet[key] && s.set_type !== 'warmup') {
+        prMarkers.x.push(s.date);
+        prMarkers.y.push(s.weight_lbs);
+        prMarkers.text.push('PR: ' + s.exercise + ' ' + s.weight_lbs + ' lbs');
+      }
+    });
+
+    var traces = [];
+    if (warmup.x.length > 0) {
+      traces.push({
+        x: warmup.x, y: warmup.y,
+        type: 'scatter', mode: 'markers',
+        marker: { color: '#64748b', size: 6, opacity: 0.5 },
+        text: warmup.text,
+        hovertemplate: '%{x}<br>%{y} lbs<br>%{text}<extra></extra>',
+        name: 'Warmup'
+      });
+    }
+    if (normal.x.length > 0) {
+      traces.push({
+        x: normal.x, y: normal.y,
+        type: 'scatter', mode: 'markers',
+        marker: { color: '#22c55e', size: 7 },
+        text: normal.text,
+        hovertemplate: '%{x}<br>%{y} lbs<br>%{text}<extra></extra>',
+        name: 'Working Sets'
+      });
+    }
+    if (prMarkers.x.length > 0) {
+      traces.push({
+        x: prMarkers.x, y: prMarkers.y,
+        type: 'scatter', mode: 'markers',
+        marker: { color: '#eab308', size: 14, symbol: 'star' },
+        text: prMarkers.text,
+        hovertemplate: '%{x}<br>%{y} lbs<br>%{text}<extra></extra>',
+        name: 'PR'
+      });
+    }
+
+    var title = selectedEx ? selectedEx : 'Strength Progression';
+    Plotly.newPlot(container, traces,
+      baseLayout(title, 'Date', 'Weight (lbs)', {
+        legend: { font: { color: '#94a3b8' }, bgcolor: 'rgba(0,0,0,0)' }
+      }),
+      plotConfig
+    );
+  }
+
+  // -- Panel switching --
+  function switchPanel(name) {
+    activePanel = name;
+
+    cardRunning.className  = 'card' + (name === 'running'  ? ' active-running'  : '');
+    cardVo2max.className   = 'card' + (name === 'vo2max'   ? ' active-vo2max'   : '');
+    cardStrength.className = 'card' + (name === 'strength' ? ' active-strength' : '');
+
+    $('panelRunning').className  = 'panel' + (name === 'running'  ? ' active' : '');
+    $('panelVo2max').className   = 'panel' + (name === 'vo2max'   ? ' active' : '');
+    $('panelStrength').className = 'panel' + (name === 'strength' ? ' active' : '');
+
+    exSelect.style.display = name === 'strength' ? '' : 'none';
+
+    if (name === 'running')  renderRunningPanel();
+    if (name === 'vo2max')   renderVo2maxPanel();
+    if (name === 'strength') renderStrengthPanel();
+  }
+
+  // -- Data loading --
+  function buildQS() {
+    var s = startInput.value;
+    var e = endInput.value;
+    var params = [];
+    if (s) params.push('start=' + s);
+    if (e) params.push('end=' + e);
+    return params.length ? '?' + params.join('&') : '';
+  }
+
+  function loadAll() {
+    hideError();
+    var qs = buildQS();
+
+    $('runningValue').textContent = 'Loading...';
+    $('runningSub').textContent = '\u00a0';
+    $('vo2maxValue').textContent = 'Loading...';
+    $('vo2maxSub').textContent = '\u00a0';
+    $('strengthValue').textContent = 'Loading...';
+    $('strengthSub').textContent = '\u00a0';
+
+    Promise.all([
+      fetch('/api/fitness/running' + qs).then(function(r) { if (!r.ok) throw new Error('Running API error: ' + r.status); return r.json(); }),
+      fetch('/api/fitness/vo2max' + qs).then(function(r) { if (!r.ok) throw new Error('VO2 Max API error: ' + r.status); return r.json(); }),
+      fetch('/api/fitness/strength' + qs).then(function(r) { if (!r.ok) throw new Error('Strength API error: ' + r.status); return r.json(); }),
+    ]).then(function(results) {
+      runData = results[0];
+      vo2Data = results[1];
+      strData = results[2];
+
+      if (runData.generated_at) {
+        var gen = new Date(runData.generated_at);
+        var diffMin = Math.round((Date.now() - gen.getTime()) / 60000);
+        syncInfo.textContent = 'Last sync: ' + (diffMin < 1 ? 'just now' : diffMin + 'm ago');
+      }
+
+      updateRunningCard();
+      updateVo2maxCard();
+      updateStrengthCard();
+      populateExercises();
+      switchPanel(activePanel);
+
+    }).catch(function(err) {
+      showError(err.message || 'Failed to load fitness data');
+    });
+  }
+
+  function populateExercises() {
+    if (!strData) return;
+    var current = exSelect.value;
+    clearChildren(exSelect);
+
+    var optAll = document.createElement('option');
+    optAll.value = '';
+    optAll.textContent = 'All exercises';
+    exSelect.appendChild(optAll);
+
+    var setCounts = {};
+    strData.sets.forEach(function(s) {
+      if (s.set_type !== 'warmup') {
+        setCounts[s.exercise] = (setCounts[s.exercise] || 0) + 1;
+      }
+    });
+
+    strData.exercises.forEach(function(name) {
+      var opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      exSelect.appendChild(opt);
+    });
+
+    if (current && strData.exercises.indexOf(current) !== -1) {
+      exSelect.value = current;
+    } else if (strData.exercises.length > 0) {
+      var bestEx = strData.exercises[0];
+      var bestCount = 0;
+      Object.keys(setCounts).forEach(function(ex) {
+        if (setCounts[ex] > bestCount) {
+          bestCount = setCounts[ex];
+          bestEx = ex;
+        }
+      });
+      exSelect.value = bestEx;
+    }
+  }
+
+  // -- Preset handling --
+  function setPreset(months) {
+    activePreset = months;
+
+    document.querySelectorAll('.preset-btn').forEach(function(btn) {
+      var m = parseInt(btn.getAttribute('data-months'), 10);
+      if (m === months) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    if (months === 0) {
+      startInput.value = '';
+      endInput.value = '';
+    } else {
+      endInput.value = isoToday();
+      startInput.value = isoMonthsAgo(months);
+    }
+
+    loadAll();
+  }
+
+  // -- Event listeners --
+  cardRunning.addEventListener('click', function() { switchPanel('running'); });
+  cardVo2max.addEventListener('click', function() { switchPanel('vo2max'); });
+  cardStrength.addEventListener('click', function() { switchPanel('strength'); });
+
+  [cardRunning, cardVo2max, cardStrength].forEach(function(card) {
+    card.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        card.click();
+      }
+    });
+  });
+
+  document.querySelectorAll('.preset-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      setPreset(parseInt(btn.getAttribute('data-months'), 10));
+    });
+  });
+
+  startInput.addEventListener('change', function() {
+    document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
+    activePreset = null;
+    loadAll();
+  });
+  endInput.addEventListener('change', function() {
+    document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
+    activePreset = null;
+    loadAll();
+  });
+
+  exSelect.addEventListener('change', function() {
+    if (activePanel === 'strength') renderStrengthPanel();
+  });
+
+  retryBtn.addEventListener('click', function() { loadAll(); });
+
+  // -- Init --
+  setPreset(6);
+
+})();
+</script>
+</body>
 </html>
