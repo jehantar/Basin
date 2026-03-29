@@ -237,8 +237,8 @@
 </div>
 
 <div class="cards">
-  <div class="card" id="cardRunning" tabindex="0" role="button" aria-label="Running Pace">
-    <div class="card-label running">Running Pace</div>
+  <div class="card" id="cardRunning" tabindex="0" role="button" aria-label="Weekly Mileage">
+    <div class="card-label running">Weekly Mileage</div>
     <div class="card-value" id="runningValue">Loading...</div>
     <div class="card-sub" id="runningSub">&nbsp;</div>
     <div class="card-trend" id="runningTrend">&nbsp;</div>
@@ -433,25 +433,31 @@
   function updateRunningCard() {
     if (!runData) return;
     var s = runData.summary;
-    if (s.latest_speed_mph != null) {
-      $('runningValue').textContent = s.latest_pace_min_per_mile + ' /mi';
-      $('runningSub').textContent = s.latest_speed_mph.toFixed(2) + ' mi/hr \u00b7 ' + s.total_runs + ' runs';
+    if (s.total_runs > 0 && s.total_distance_mi != null) {
+      $('runningValue').textContent = s.total_distance_mi.toFixed(1) + ' mi';
+      $('runningSub').textContent = s.total_runs + ' runs \u00b7 avg ' + (s.latest_pace_min_per_mile || '---') + ' /mi';
     } else {
       $('runningValue').textContent = '---';
       $('runningSub').textContent = 'No runs in range';
     }
-    var speeds = runData.runs.map(function(r) { return r.avg_speed_mph; });
-    if (speeds.length >= 2) {
-      var recent = speeds.slice(-5);
-      var older  = speeds.slice(0, Math.max(1, speeds.length - 5));
-      var avgRecent = recent.reduce(function(a,b) { return a+b; }, 0) / recent.length;
-      var avgOlder  = older.reduce(function(a,b) { return a+b; }, 0) / older.length;
-      var pct = ((avgRecent - avgOlder) / avgOlder * 100).toFixed(1);
-      $('runningTrend').textContent = (pct >= 0 ? '+' : '') + pct + '% vs earlier runs';
+    // Sparkline: weekly mileage bars
+    var weeklyMiles = {};
+    runData.runs.forEach(function(r) {
+      if (r.distance_mi == null) return;
+      var d = new Date(r.date + 'T00:00:00');
+      var day = d.getDay();
+      var diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      var monday = new Date(d.setDate(diff));
+      var weekKey = monday.toISOString().split('T')[0];
+      weeklyMiles[weekKey] = (weeklyMiles[weekKey] || 0) + r.distance_mi;
+    });
+    var weekVals = Object.keys(weeklyMiles).sort().map(function(w) { return weeklyMiles[w]; });
+    if (weekVals.length > 0) {
+      $('runningTrend').textContent = s.total_runs + ' runs in range';
+      renderSparkline('sparkRunning', weekVals.slice(-12), '#3b82f6');
     } else {
       $('runningTrend').textContent = '';
     }
-    renderSparkline('sparkRunning', speeds.slice(-20), '#3b82f6');
   }
 
   function updateVo2maxCard() {
@@ -510,26 +516,44 @@
       return;
     }
     var runs = runData.runs;
-    var dates  = runs.map(function(r) { return r.date; });
-    var speeds = runs.map(function(r) { return r.avg_speed_mph; });
-    var customText = runs.map(function(r) {
-      return 'Pace: ' + speedToPace(r.avg_speed_mph) +
-        (r.duration_min != null ? ' | Dur: ' + r.duration_min.toFixed(1) + 'm' : '') +
-        (r.avg_power != null ? ' | Pwr: ' + r.avg_power + 'W' : '');
+
+    // Aggregate into weekly mileage (ISO week)
+    var weeklyMiles = {};
+    runs.forEach(function(r) {
+      if (r.distance_mi == null) return;
+      var d = new Date(r.date + 'T00:00:00');
+      // Get Monday of this week
+      var day = d.getDay();
+      var diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      var monday = new Date(d.setDate(diff));
+      var weekKey = monday.toISOString().split('T')[0];
+      weeklyMiles[weekKey] = (weeklyMiles[weekKey] || 0) + r.distance_mi;
+    });
+    var weekDates = Object.keys(weeklyMiles).sort();
+    var weekValues = weekDates.map(function(w) { return Math.round(weeklyMiles[w] * 100) / 100; });
+
+    // Weekly run counts for hover
+    var weekRunCounts = {};
+    runs.forEach(function(r) {
+      var d = new Date(r.date + 'T00:00:00');
+      var day = d.getDay();
+      var diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      var monday = new Date(d.setDate(diff));
+      var weekKey = monday.toISOString().split('T')[0];
+      weekRunCounts[weekKey] = (weekRunCounts[weekKey] || 0) + 1;
+    });
+    var hoverText = weekDates.map(function(w) {
+      return weekRunCounts[w] + ' run' + (weekRunCounts[w] > 1 ? 's' : '');
     });
 
     Plotly.newPlot(container, [{
-      x: dates,
-      y: speeds,
-      type: 'scatter',
-      mode: 'lines+markers',
-      fill: 'tozeroy',
-      fillcolor: 'rgba(59,130,246,0.1)',
-      line: { color: '#3b82f6', width: 2 },
-      marker: { color: '#3b82f6', size: 5 },
-      text: customText,
-      hovertemplate: '%{x}<br>Speed: %{y:.2f} mi/hr<br>%{text}<extra></extra>'
-    }], baseLayout('Running Performance', 'Date', 'Speed (mi/hr)'), plotConfig);
+      x: weekDates,
+      y: weekValues,
+      type: 'bar',
+      marker: { color: '#3b82f6', opacity: 0.8 },
+      text: hoverText,
+      hovertemplate: 'Week of %{x}<br>%{y:.1f} mi<br>%{text}<extra></extra>'
+    }], baseLayout('Weekly Mileage', 'Week', 'Miles'), plotConfig);
 
     // Recent runs table
     clearChildren(tbody);
