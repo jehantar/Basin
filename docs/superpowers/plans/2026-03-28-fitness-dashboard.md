@@ -2,13 +2,34 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a web-based fitness dashboard to Basin showing running performance, VO2 max trends, and weight progression charts, served by the existing webhook container.
+**Goal:** Add a web-based fitness dashboard to Basin showing running performance, VO2 max trends, and strength progression charts, served by the existing webhook container.
 
 **Architecture:** Three new API endpoints return JSON data from Postgres. A single HTML page with embedded Plotly.js charts fetches from those endpoints. Dashboard routes are in a separate `webhook/dashboard.py` module mounted on the existing FastAPI app. No new dependencies -- Plotly loaded from CDN.
 
 **Tech Stack:** FastAPI, SQLAlchemy (raw SQL), Plotly.js (CDN), vanilla HTML/CSS/JS
 
 **Spec:** `docs/superpowers/specs/2026-03-28-fitness-dashboard-design.md`
+
+## Cross-cutting Requirements (apply to all tasks)
+
+- **Scope alignment:** This dashboard currently uses running + VO2 max + **strength progression** data. If body-weight progression is required, update the spec and endpoint contract before implementation.
+- **API contract quality:** All endpoints should return deterministic ordering and a consistent error shape (`code`, `message`, `hint`) for 4xx/5xx responses.
+- **Performance targets:** Aim for p95 API latency under 300 ms for 1-year range, and keep payload size practical for browser rendering.
+- **Security defaults:** Use safe HTML serving (`utf-8`, deterministic path), keep dynamic text updates on `textContent`, and set appropriate cache/security headers.
+- **Observability:** Add structured logs per endpoint including range, latency, row counts, and error context.
+- **Release safety:** Stage first, then production promotion with smoke tests and rollback notes.
+
+## Task 0: Design Hardening (required before Task 1)
+
+**Files:**
+- Modify: `docs/superpowers/specs/2026-03-28-fitness-dashboard-design.md`
+- Modify: `docs/superpowers/plans/2026-03-28-fitness-dashboard.md`
+
+- [ ] Confirm scope wording is consistent everywhere (`strength progression` vs `body weight progression`).
+- [ ] Add non-functional acceptance criteria (latency, payload size, accessibility).
+- [ ] Define standard API error schema for validation and server errors.
+- [ ] Add query scalability notes (index strategy + `EXPLAIN ANALYZE` verification).
+- [ ] Add deployment gate requiring staging verification prior to production.
 
 ---
 
@@ -688,51 +709,50 @@ git commit -m "feat: add fitness dashboard HTML with Plotly charts and card layo
 ## Task 6: Deploy and Verify
 
 **Files:**
-- No new files -- deploy and verify
+- No new product files required; update deployment notes/scripts as needed.
 
-- [ ] **Step 1: Sync to VM and rebuild webhook**
-
-```bash
-rsync -av --exclude='.git' --exclude='__pycache__' --exclude='docs/' --exclude='.DS_Store' \
-  /Users/jehan/Projects/Basin/ root@reservebot:/opt/basin/
-
-ssh root@reservebot 'export $(cat /etc/basin/secrets | xargs) && cd /opt/basin && \
-  op run --env-file=.env -- docker compose up -d --build webhook'
-```
-
-- [ ] **Step 2: Verify dashboard loads**
+- [ ] **Step 1: Pre-release gate (local/CI)**
 
 ```bash
-curl -s http://100.125.126.42:8075/dashboard | head -5
+pytest tests/test_dashboard.py -v
+ruff check webhook tests
 ```
 
-Expected: HTML starting with `<!DOCTYPE html>`
+Expected: all checks pass before any deploy attempt.
 
-- [ ] **Step 3: Verify API endpoints return data**
+- [ ] **Step 2: Deploy to staging first (required)**
+
+Use project-managed deploy script or documented compose workflow for staging. Avoid machine-specific absolute paths in this plan.
+
+Expected: webhook container healthy in staging.
+
+- [ ] **Step 3: Staging smoke tests**
 
 ```bash
-curl -s "http://100.125.126.42:8075/api/fitness/running?start=2024-01-01" | python3 -m json.tool | head -20
-curl -s "http://100.125.126.42:8075/api/fitness/vo2max?start=2023-01-01" | python3 -m json.tool | head -20
-curl -s "http://100.125.126.42:8075/api/fitness/strength?start=2024-01-01" | python3 -m json.tool | head -20
+curl -sS http://<staging-host>/dashboard | head -5
+curl -sS "http://<staging-host>/api/fitness/running?start=2024-01-01" | python3 -m json.tool | head -20
+curl -sS "http://<staging-host>/api/fitness/vo2max?start=2023-01-01" | python3 -m json.tool | head -20
+curl -sS "http://<staging-host>/api/fitness/strength?start=2024-01-01" | python3 -m json.tool | head -20
 ```
 
-Expected: JSON responses with `runs`, `readings`, and `sets` arrays containing real data.
+Expected: HTML loads and all endpoint payloads validate schema.
 
-- [ ] **Step 4: Open dashboard in browser and verify charts render**
+- [ ] **Step 4: Browser validation + accessibility check**
 
-Open `http://100.125.126.42:8075/dashboard` in browser over Tailscale. Verify:
-- Three summary cards load with real numbers
-- Clicking each card switches the detail panel
-- Running chart shows pace data points
-- VO2 max chart shows trend with peak reference line
-- Strength chart shows exercise data with warmup/normal distinction
-- Time filters (3M/6M/1Y/All) reload data
-- Date pickers work
+Open staging dashboard and verify:
+- Summary cards load independently and show fallback on partial API failure.
+- Keyboard navigation works for card selection and filters.
+- Empty/error states are visible and actionable.
 
-- [ ] **Step 5: Commit any fixes and push**
+- [ ] **Step 5: Production deploy with rollback note**
+
+Promote the same artifact/config from staging to production, then rerun smoke tests against production.
+
+Also document rollback command/procedure in the deployment note for this release.
+
+- [ ] **Step 6: Commit any deployment-doc updates**
 
 ```bash
 git add -A
-git commit -m "fix: dashboard deployment adjustments"
-git push origin main
+git commit -m "docs: harden fitness dashboard release and verification workflow"
 ```
