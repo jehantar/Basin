@@ -11,6 +11,17 @@ The current panel shows weight per set on a scatter plot with a per-exercise dro
 - Mixing different workout types in one view makes comparison meaningless
 - A dropdown across 34 exercises is tedious to navigate
 
+## Goals
+
+- Make progression easier to interpret at a workout-program level.
+- Preserve backward compatibility for existing strength consumers during migration.
+- Keep client interactions responsive while avoiding unbounded payload growth.
+
+## Non-Goals
+
+- Replacing running/VO2 panels.
+- Adding advanced periodization analytics (e.g., 1RM estimation, fatigue scores) in this iteration.
+
 ## Design
 
 ### Layout
@@ -28,35 +39,70 @@ The current panel shows weight per set on a scatter plot with a per-exercise dro
 
 ### Workout Type Tabs
 
-- Tabs are derived from `hevy.workouts.title` grouped and counted
-- Ordered by frequency (most common first)
-- Default: first tab (most frequent workout type)
-- Switching tabs re-renders the chart and log without a new API call (data is pre-fetched for all types, filtered client-side)
+- Tabs are derived from `hevy.workouts.title` grouped and counted.
+- Ordered by deterministic sort:
+  1. frequency descending (most sessions first)
+  2. most recent session date descending
+  3. title ascending (case-insensitive)
+- Default: first tab in this order.
+- Switching tabs re-renders the chart and log without a new API call (data is pre-fetched for all types and filtered client-side).
 
 ### Volume Calculation
 
-- Volume = sum of (weight_lbs x reps) for all qualifying sets in a workout
-- Qualifying sets: `set_type != 'warmup'` AND `weight_lbs IS NOT NULL` AND `reps > 0`
-- Bodyweight exercises (weight_lbs IS NULL) are excluded from volume totals but shown in the log
+- Session volume = sum of (`weight_lbs x reps`) for all qualifying sets in a workout.
+- Qualifying sets: `set_type != 'warmup'` AND `weight_lbs IS NOT NULL` AND `reps > 0`.
+- Bodyweight exercises (`weight_lbs IS NULL`) are excluded from volume totals but shown in the log.
+- Per-exercise `volume_lbs` uses the same qualifying-set rules.
 
 ### Trend Cards
 
-- **Volume trend %**: `(latest_volume - first_volume) / first_volume * 100`. Show as +X% (green) or -X% (red).
+- **Volume trend %**: `(latest_volume - first_volume) / first_volume * 100`.
+- Guardrails:
+  - If fewer than 2 sessions, show `---`.
+  - If `first_volume <= 0`, show `---` (avoid divide-by-zero and misleading infinities).
+- Positive trends shown as `+X%` (green), negative trends as `-X%` (red).
 - **Peak volume**: max session volume across all sessions in range for the selected workout type. Show value and date.
 - **Session count**: count of sessions for the selected workout type in range.
-- If fewer than 2 sessions, volume trend shows "---" instead of a percentage.
 
 ### Session-Over-Session Change
 
-Each bar in the chart (except the first) shows a % change label below it comparing to the previous session of the same workout type. Positive changes in green, negative in red.
+- Each bar in the chart (except the first) shows a % change label below it comparing to the previous session of the same workout type.
+- Positive changes in green, negative in red.
+- If previous session volume is `0` or null, display `---` for that delta.
+
+### Timezone and Date Semantics
+
+- All workout date bucketing and labels are based on UTC dates, consistent with existing dashboard fitness endpoints.
+- Response metadata continues to include `timezone: "UTC"`.
+
+### Accessibility Requirements
+
+- Workout rows are keyboard-operable controls (`button` semantics or equivalent).
+- Expanded/collapsed state is exposed via `aria-expanded` and `aria-controls`.
+- Enter/Space toggles expansion.
+- Tab controls use appropriate selected-state semantics.
+
+### Empty and Error States
+
+- No sessions in range: show empty chart/log state and guidance to widen date range.
+- Single session: show session metrics; trend fields that require comparison display `---`.
+- All-zero-volume sessions: show bars at zero and trend deltas as `---` where applicable.
+- Unknown/invalid title filter: return empty data (200) unless validation mode is explicitly added later.
 
 ## API Changes
 
 ### Modify `GET /api/fitness/strength`
 
-Add a new query param: `title` (optional, exact match on `hevy.workouts.title`).
+Query params:
+- `title` (optional, exact match on `hevy.workouts.title`).
+- `exercise` remains supported for backward compatibility.
+
+Filter behavior:
+- If both `title` and `exercise` are provided, apply **AND** semantics.
+- If either filter has no matches, return an empty result set with 200.
 
 Add to the response:
+
 ```json
 {
   "workout_titles": ["Lower A", "Upper A", "Lower B", "Upper B"],
@@ -82,32 +128,58 @@ Add to the response:
 }
 ```
 
-The existing `exercises`, `sets`, and `prs` fields remain for backward compatibility but the new `workouts` field is what the redesigned panel uses.
+Compatibility contract:
+- Existing `exercises`, `sets`, and `prs` fields remain in the response during migration.
+- New strength panel consumes `workouts` + `workout_titles`.
+- Legacy fields are marked deprecated in code comments/docs after rollout, then removed in a follow-up release once no consumers remain.
 
 ### Workout titles
 
-`workout_titles` is the distinct list of titles ordered by frequency (most sessions first). This determines the tab order.
+`workout_titles` is the distinct list of titles ordered by the deterministic tab sort defined above.
+
+### Performance / payload constraints
+
+- Default behavior should avoid unbounded response sizes.
+- Server should support one or both of:
+  - hard maximum sessions returned (e.g., latest N workouts within range), and/or
+  - pagination/cursor for large result sets.
+- Client can still pre-fetch all returned types and switch tabs client-side.
+
+### Query strategy
+
+Implement data retrieval with set-based SQL aggregation and deterministic ordering to avoid N+1 query patterns when constructing nested `workouts[].exercises[].sets[]`.
 
 ## HTML/JS Changes
 
 Replace the strength panel contents in `webhook/dashboard.html`:
-- Remove: exercise dropdown, scatter chart
-- Add: workout type tabs, trend cards, Plotly volume bar chart, expandable workout log
-- All data comes from the existing `/api/fitness/strength` endpoint (with the new `workouts` field)
-- Tab switching is client-side only (filter the pre-fetched workouts array by title)
-- Workout row expansion uses CSS max-height transition (same pattern as the mockup)
-- Use `textContent` and `createElement` for all dynamic content (no innerHTML with user data)
+- Remove: exercise dropdown, scatter chart.
+- Add: workout type tabs, trend cards, Plotly volume bar chart, expandable workout log.
+- All data comes from `/api/fitness/strength` (using the new `workouts` field).
+- Tab switching is client-side only (filter pre-fetched workouts array by title).
+- Workout row expansion uses CSS max-height transition (same pattern as the mockup).
+- Use `textContent` and `createElement` for all dynamic content (no `innerHTML` with user data).
+- Use Plotly `customdata` for hover metadata (volume, set count, session delta).
 
 ## Strength Summary Card
 
 Update the top-level strength card to show:
-- **Value**: total volume of the latest session (any type)
-- **Subtitle**: workout title and date
-- **Trend**: session count in range
-- **Sparkline**: volume per session across all types
+- **Value**: total volume of the latest session (any type).
+- **Subtitle**: workout title and date.
+- **Trend**: session count in range.
+- **Sparkline**: volume per session across all types.
+
+## Test Plan
+
+Update `tests/test_dashboard.py` with explicit coverage for:
+- `workout_titles` deterministic ordering + tie-breakers.
+- Volume inclusion/exclusion rules (warmups, null weight/bodyweight, reps <= 0).
+- Trend edge cases (0 sessions, 1 session, first volume = 0).
+- `title` filter behavior and combined `title+exercise` filtering.
+- Backward compatibility fields (`exercises`, `sets`, `prs`) still present.
+- Empty results for unmatched filters.
 
 ## File Changes
 
-- **Modify**: `webhook/dashboard.py` — update strength endpoint to include `workouts` and `workout_titles`
-- **Modify**: `webhook/dashboard.html` — replace strength panel
-- **Modify**: `tests/test_dashboard.py` — update strength tests for new response shape
+- **Modify**: `webhook/dashboard.py` — update strength endpoint to include `workouts` and `workout_titles`, add `title` filtering, preserve compatibility fields.
+- **Modify**: `webhook/dashboard.html` — replace strength panel.
+- **Modify**: `tests/test_dashboard.py` — extend tests for response shape, sorting, edge cases, and compatibility.
