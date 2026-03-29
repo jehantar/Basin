@@ -73,44 +73,33 @@ def get_running_data(start: str | None = None, end: str | None = None):
     start_date, end_date = _parse_date_range(start, end)
 
     with get_session() as session:
-        # Use workout dates as source of truth for "a run happened"
-        # then join speed/power metrics by matching the workout's time window
-        workout_rows = session.execute(text("""
-            SELECT (start_time AT TIME ZONE 'UTC')::date as date,
-                   round((duration_sec / 60.0)::numeric, 1) as duration_min,
-                   start_time, end_time
-            FROM healthkit.workouts
-            WHERE workout_type = 'Running'
-              AND (start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
-            ORDER BY start_time
+        # Single set-based query: join workouts with speed/power metrics
+        # using each workout's time window, avoiding O(N) per-run queries
+        rows = session.execute(text("""
+            SELECT w.id,
+                   (w.start_time AT TIME ZONE 'UTC')::date as date,
+                   round((w.duration_sec / 60.0)::numeric, 1) as duration_min,
+                   round(avg(speed.value)::numeric, 2) as avg_speed,
+                   round(avg(power.value)::numeric, 0) as avg_power
+            FROM healthkit.workouts w
+            LEFT JOIN healthkit.metrics speed
+              ON speed.metric_type = 'running_speed'
+              AND speed.recorded_at BETWEEN w.start_time AND w.end_time
+            LEFT JOIN healthkit.metrics power
+              ON power.metric_type = 'running_power'
+              AND power.recorded_at BETWEEN w.start_time AND w.end_time
+            WHERE w.workout_type = 'Running'
+              AND (w.start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+            GROUP BY w.id, w.start_time, w.duration_sec
+            ORDER BY w.start_time
         """), {"start": start_date, "end": end_date}).fetchall()
 
         runs = []
-        for row in workout_rows:
-            d = str(row[0])
-            duration_min = float(row[1]) if row[1] else None
-            w_start = row[2]
-            w_end = row[3]
-
-            # Get avg speed during this workout's time window
-            speed_row = session.execute(text("""
-                SELECT round(avg(value)::numeric, 2) as avg_speed
-                FROM healthkit.metrics
-                WHERE metric_type = 'running_speed'
-                  AND recorded_at BETWEEN :ws AND :we
-            """), {"ws": w_start, "we": w_end}).fetchone()
-            speed = float(speed_row[0]) if speed_row and speed_row[0] else None
-
-            # Get avg power during this workout's time window
-            power_row = session.execute(text("""
-                SELECT round(avg(value)::numeric, 0) as avg_power
-                FROM healthkit.metrics
-                WHERE metric_type = 'running_power'
-                  AND recorded_at BETWEEN :ws AND :we
-            """), {"ws": w_start, "we": w_end}).fetchone()
-            avg_power = float(power_row[0]) if power_row and power_row[0] else None
-
-            # Derive distance: speed (mi/hr) * duration (hr)
+        for row in rows:
+            d = str(row[1])
+            duration_min = float(row[2]) if row[2] else None
+            speed = float(row[3]) if row[3] else None
+            avg_power = float(row[4]) if row[4] else None
             distance_mi = round(speed * (duration_min / 60.0), 2) if speed and duration_min else None
 
             runs.append({
@@ -200,16 +189,16 @@ def get_strength_data(
             params["exercise"] = exercise
 
         sets_rows = session.execute(text(f"""
-            SELECT w.started_at::date as date,
+            SELECT (w.started_at AT TIME ZONE 'UTC')::date as date,
                    e.name as exercise,
-                   s.weight_lbs,
+                   round(s.weight_lbs::numeric, 0) as weight_lbs,
                    s.reps,
                    s.set_index,
                    s.set_type
             FROM hevy.sets s
             JOIN hevy.exercises e ON s.exercise_id = e.id
             JOIN hevy.workouts w ON s.workout_id = w.id
-            WHERE w.started_at::date BETWEEN :start AND :end
+            WHERE (w.started_at AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
               {exercise_filter}
             ORDER BY w.started_at, e.name, s.set_index
         """), params).fetchall()
@@ -217,7 +206,7 @@ def get_strength_data(
         sets = [{
             "date": str(r[0]),
             "exercise": r[1],
-            "weight_lbs": round(float(r[2])) if r[2] else None,
+            "weight_lbs": int(r[2]) if r[2] is not None else None,
             "reps": r[3],
             "set_index": r[4],
             "set_type": r[5],
@@ -229,11 +218,11 @@ def get_strength_data(
             SELECT DISTINCT ON (e.name)
                    e.name as exercise,
                    round(s.weight_lbs::numeric, 0) as max_lbs,
-                   w.started_at::date as date
+                   (w.started_at AT TIME ZONE 'UTC')::date as date
             FROM hevy.sets s
             JOIN hevy.exercises e ON s.exercise_id = e.id
             JOIN hevy.workouts w ON s.workout_id = w.id
-            WHERE w.started_at::date BETWEEN :start AND :end
+            WHERE (w.started_at AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
               AND s.set_type != 'warmup'
               AND s.reps > 0
               AND s.weight_lbs IS NOT NULL
