@@ -580,11 +580,11 @@
       tr.appendChild(tdDist);
 
       var tdPace = document.createElement('td');
-      tdPace.textContent = speedToPace(r.avg_speed_mph) + ' /mi';
+      tdPace.textContent = r.avg_speed_mph != null ? speedToPace(r.avg_speed_mph) + ' /mi' : '---';
       tr.appendChild(tdPace);
 
       var tdSpeed = document.createElement('td');
-      tdSpeed.textContent = r.avg_speed_mph.toFixed(2) + ' mi/hr';
+      tdSpeed.textContent = r.avg_speed_mph != null ? r.avg_speed_mph.toFixed(2) + ' mi/hr' : '---';
       tr.appendChild(tdSpeed);
 
       var tdDur = document.createElement('td');
