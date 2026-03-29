@@ -75,11 +75,11 @@ def test_parse_imperial_csv(session, monkeypatch, tmp_path):
     # 1 workout + 1 exercise + 1 set = 3
     assert count == 3
 
-    # Check weight was converted to kg (225 lbs = 102.058 kg)
+    # Imperial CSV stores lbs directly (225 lbs)
     weight = session.execute(
-        text("SELECT weight_kg FROM hevy.sets LIMIT 1")
+        text("SELECT weight_lbs FROM hevy.sets LIMIT 1")
     ).scalar()
-    assert abs(float(weight) - 102.058) < 0.1
+    assert abs(float(weight) - 225.0) < 0.1
 
 
 def test_rpe_parsed(session, monkeypatch, tmp_path):

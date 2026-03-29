@@ -65,7 +65,7 @@ CREATE TABLE hevy.sets (
     exercise_id     BIGINT NOT NULL REFERENCES hevy.exercises(id) ON DELETE RESTRICT,
     set_index       INTEGER NOT NULL,
     set_type        TEXT NOT NULL DEFAULT 'normal',
-    weight_kg       DOUBLE PRECISION,
+    weight_lbs      DOUBLE PRECISION,
     reps            INTEGER,
     distance_m      DOUBLE PRECISION,
     duration_sec    INTEGER,

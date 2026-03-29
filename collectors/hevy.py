@@ -138,16 +138,16 @@ class HevyCollector(BaseCollector):
                     {"name": exercise_name},
                 ).scalar()
 
-                # Parse weight
-                weight_kg = None
+                # Parse weight (store as lbs)
+                weight_lbs = None
                 if has_lbs:
                     raw = row.get("weight_lbs", "").strip()
                     if raw:
-                        weight_kg = float(raw) * LBS_TO_KG
+                        weight_lbs = float(raw)
                 else:
                     raw = row.get("weight_kg", "").strip()
                     if raw:
-                        weight_kg = float(raw)
+                        weight_lbs = float(raw) / LBS_TO_KG
 
                 # Parse distance
                 distance_m = None
@@ -180,7 +180,7 @@ class HevyCollector(BaseCollector):
                         "exercise_id": exercise_id,
                         "set_index": int(row["set_index"]),
                         "set_type": set_type,
-                        "weight_kg": weight_kg,
+                        "weight_lbs": weight_lbs,
                         "reps": reps,
                         "distance_m": distance_m,
                         "duration_sec": dur,
