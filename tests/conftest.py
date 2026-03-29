@@ -23,6 +23,8 @@ def engine():
     )
     with open(migration_path) as f:
         sql = f.read()
+    # Strip BEGIN/COMMIT from migration SQL since SQLAlchemy manages its own transactions
+    clean_sql = sql.replace("BEGIN;", "").replace("COMMIT;", "")
     with eng.connect() as conn:
         conn.execute(text("""
             DROP SCHEMA IF EXISTS healthkit CASCADE;
@@ -31,7 +33,7 @@ def engine():
             DROP SCHEMA IF EXISTS teller CASCADE;
             DROP SCHEMA IF EXISTS basin CASCADE;
         """))
-        conn.execute(text(sql))
+        conn.execute(text(clean_sql))
         conn.commit()
     yield eng
     eng.dispose()

@@ -99,7 +99,7 @@ class TellerCollector(BaseCollector):
         cert_path = os.environ.get("TELLER_CERT_PATH", "")
         key_path = os.environ.get("TELLER_KEY_PATH", "")
 
-        if not access_token or not cert_path:
+        if not access_token or not cert_path or not key_path:
             logger.warning("Teller credentials not configured, skipping")
             return 0
 
@@ -130,6 +130,10 @@ class TellerCollector(BaseCollector):
                     text("SELECT id FROM teller.institutions WHERE institution_id = :iid"),
                     {"iid": inst_ext_id},
                 ).scalar()
+
+                if inst_db_id is None:
+                    logger.warning(f"Skipping account {acct_row['account_id']}: no institution found")
+                    continue
 
                 acct_row["institution_id"] = inst_db_id
                 total += bulk_upsert(

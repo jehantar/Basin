@@ -97,5 +97,10 @@ def bulk_upsert(
         ON CONFLICT ({conflict_list}) {conflict_action}
     """
 
-    result = session.execute(text(sql), rows)
-    return result.rowcount
+    # Execute rows individually to get accurate rowcount.
+    # executemany (passing a list) returns rowcount=-1 with psycopg2.
+    total = 0
+    for row in rows:
+        result = session.execute(text(sql), row)
+        total += result.rowcount
+    return total
