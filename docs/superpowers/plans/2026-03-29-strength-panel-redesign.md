@@ -32,6 +32,15 @@ tests/
 
 Add `workout_titles` and `workouts` to the strength endpoint response. Use set-based SQL to avoid N+1 queries. Add `title` query param. Keep existing `exercises`, `sets`, `prs` fields intact.
 
+### Task 1 Implementation Notes (Best Practices)
+
+- **Contract first:** Define and document the response contract explicitly (`workout_titles`, `workouts`, and legacy fields) including sort order guarantees.
+- **Filter behavior:** Keep `workout_titles` computed from date range regardless of `title` filter so tabs remain stable and discoverable.
+- **Date guardrails:** Add a max allowed date window (for example 365 or 730 days) to prevent runaway queries.
+- **Performance:** Keep this set-based, and prefer SQL-side aggregation for `volume_lbs`, `set_count`, and `exercise_count` where practical.
+- **Index check:** Confirm indexes exist for `hevy.workouts(started_at)`, `hevy.workouts(title, started_at)`, and `hevy.sets(workout_id, exercise_id, set_index)`.
+- **Timezone determinism:** Treat boundaries as UTC and add tests around start/end crossover dates.
+
 - [ ] **Step 1: Update test seed data to use realistic workout titles**
 
 Replace the existing `_seed_strength_data` function in `tests/test_dashboard.py` with one that uses proper workout titles (Lower A, Upper A) so we can test tab sorting and title filtering:
@@ -176,6 +185,14 @@ def test_strength_empty_title_filter(client):
     data = resp.json()
     assert data["workouts"] == []
 ```
+
+- [ ] **Step 2.5: Add edge-case and contract tests**
+
+Add targeted tests for:
+- Date boundary inclusion (`start`, `end`) and UTC crossover behavior
+- Volume rules for null/zero/negative reps and null weight
+- Deterministic ordering for workouts/exercises/sets
+- Legacy + new field coexistence (contract stability)
 
 - [ ] **Step 3: Implement the extended strength endpoint**
 
@@ -340,6 +357,15 @@ git commit -m "feat: extend strength API with workouts, workout_titles, and titl
 
 Replace the strength panel with workout type tabs, trend summary cards, Plotly volume bar chart, and expandable workout log. Remove the exercise dropdown and scatter chart.
 
+### Task 2 Implementation Notes (Best Practices)
+
+- **Keep rendering modular:** Split compute vs render (`computeStrengthMetrics`, `renderStrengthChart`, `buildWorkoutLog`) to improve readability and testing.
+- **A11y tab pattern:** Implement full WAI-ARIA semantics (`tablist`, `tab`, `tabpanel`) with arrow key navigation and roving tabindex.
+- **Expandable rows:** Use stable `id` + `aria-controls` and support Enter/Space toggling.
+- **Large dataset handling:** Render a capped initial list (e.g., first 50 rows) with a load-more control for very large histories.
+- **State persistence:** Store selected tab in URL query/hash so refresh and sharing preserve context.
+- **Empty states:** Add explicit no-data messaging for selected title/date combinations.
+
 - [ ] **Step 1: Add CSS for the new strength panel components**
 
 Add these styles to the `<style>` block in `webhook/dashboard.html` (after the existing styles, before `</style>`):
@@ -459,6 +485,14 @@ git commit -m "feat: replace strength panel with volume progression and workout 
 
 **Files:**
 - No new files
+
+### Task 3 Verification & Rollout Notes (Best Practices)
+
+- **Phased rollout:** Prefer enabling this behind a temporary feature flag (`strength_v2`) before making it default.
+- **Verification depth:** Validate response types/shape (not just key presence) and log endpoint timing before/after deploy.
+- **Observability:** Add structured fields like `strength_range_days`, `strength_workout_count`, `strength_title_filter`, and query duration ms.
+- **Rollback readiness:** Document exact rollback commands next to deploy commands.
+- **Deprecation plan:** Keep legacy fields for at least one release cycle and note removal timing.
 
 - [ ] **Step 1: Sync and rebuild**
 
