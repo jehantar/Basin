@@ -96,6 +96,18 @@ Every fitness endpoint returns:
 }
 ```
 
+### Error responses
+
+All 4xx/5xx responses use this shape:
+
+```json
+{
+  "code": 400,
+  "message": "start must be before end",
+  "hint": "Provide dates in YYYY-MM-DD format with start <= end"
+}
+```
+
 ### `GET /dashboard`
 
 Serves the HTML dashboard page (single file with embedded CSS/JS).
@@ -221,7 +233,7 @@ Single HTML file served by FastAPI at `/dashboard`. Contains:
 - **Horizontal reference line** at peak value (dashed, labeled)
 - **X axis:** date, **Y axis:** `mL/kg/min`
 
-### Weight Progression (detail panel)
+### Strength Progression (detail panel)
 
 - **Dropdown** to select exercise (default: exercise with most qualifying sets in range)
 - **Scatter + line chart:** weight per set over time, colored by `set_type` (normal vs warmup)
@@ -273,6 +285,17 @@ Visible in the detail panel above the chart:
 - Target API latency: p95 < 400ms for default 6M range.
 - Server enforces maximum date span of 5 years to avoid pathological queries.
 - Ensure indexes exist for key query fields used by running, vo2max, and strength endpoints.
+- Verify existing indexes cover the dashboard queries: `idx_healthkit_metrics_type_time`, `idx_collector_runs_collector_time`.
+- Run `EXPLAIN ANALYZE` on each endpoint query during verification to confirm index usage.
+- For strength queries joining hevy.sets/workouts/exercises, the existing unique indexes are sufficient at current scale.
+
+## Acceptance Criteria
+
+- API p95 latency < 300ms for 1-year range.
+- API payload size < 500KB for default 6M range.
+- Dashboard initial load < 3 seconds on Tailscale.
+- All interactive controls keyboard-accessible.
+- WCAG AA contrast on text elements.
 
 ## File Changes
 
@@ -280,3 +303,7 @@ Visible in the detail panel above the chart:
 - **Create:** `webhook/dashboard.html` — single-file HTML dashboard with embedded CSS/JS
 
 No new Python dependencies required. Plotly.js loaded from CDN. No Docker or deployment changes required.
+
+## Deployment
+
+Staging verification (smoke tests + browser check) is required before production promotion.

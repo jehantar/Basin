@@ -13,11 +13,13 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from shared.db import get_session, bulk_upsert
+from webhook.dashboard import router as dashboard_router
 
 logger = logging.getLogger("basin.webhook")
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Basin Webhook")
+app.include_router(dashboard_router)
 
 HEALTHKIT_FAILED_DIR = "/data/healthkit/failed"
 
