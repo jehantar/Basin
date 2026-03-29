@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: basin
+      POSTGRES_USER: basin
+      POSTGRES_PASSWORD: ${BASIN_PG_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks:
+      - basin
+    command: >
+      postgres
+        -c shared_buffers=64MB
+        -c work_mem=4MB
+        -c effective_cache_size=256MB
+        -c max_connections=20
+    shm_size: 128mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U basin -d basin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile.collector
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./data:/data
+      - ./certs:/certs:ro
+    networks:
+      - basin
+    environment:
+      DATABASE_URL: postgresql://basin:${BASIN_PG_PASSWORD}@postgres:5432/basin
+      SCHWAB_CLIENT_ID: ${SCHWAB_CLIENT_ID}
+      SCHWAB_CLIENT_SECRET: ${SCHWAB_CLIENT_SECRET}
+      SCHWAB_REDIRECT_URI: ${SCHWAB_REDIRECT_URI}
+      TELLER_ACCESS_TOKEN: ${TELLER_ACCESS_TOKEN}
+      TELLER_CERT_PATH: /certs/teller/certificate.pem
+      TELLER_KEY_PATH: /certs/teller/private_key.pem
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+
+  webhook:
+    build:
+      context: .
+      dockerfile: Dockerfile.webhook
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${WEBHOOK_BIND:-8075}:8000"
+    networks:
+      - basin
+    environment:
+      DATABASE_URL: postgresql://basin:${BASIN_PG_PASSWORD}@postgres:5432/basin
+      SCHWAB_CLIENT_ID: ${SCHWAB_CLIENT_ID}
+      SCHWAB_CLIENT_SECRET: ${SCHWAB_CLIENT_SECRET}
+      SCHWAB_REDIRECT_URI: ${SCHWAB_REDIRECT_URI}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  pgdata:
+
+networks:
+  basin:
+    driver: bridge

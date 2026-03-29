@@ -1,0 +1,21 @@
+# Secrets
+.env
+certs/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+.venv/
+
+# Data
+data/
+backups/
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
