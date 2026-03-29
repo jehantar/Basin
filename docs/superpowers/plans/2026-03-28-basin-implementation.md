@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-03-28-basin-data-aggregator-design.md`
 
+> **QA integration note (2026-03-28):** Feedback has been incorporated directly into the task steps and code snippets below (security hardening, idempotency, test repeatability, and config flexibility) instead of being tracked in a separate review section.
+
 ---
 
 ## File Structure
@@ -68,6 +70,8 @@ basin/
 
 This script is run once on the Hetzner VM as root. It installs Docker, creates a swap file, creates a `basin` user, and sets up directories.
 
+Implementation notes integrated from review: keep bootstrap idempotent (no duplicate fstab entries) and use conservative apt install flags.
+
 - [ ] **Step 1: Write the bootstrap script**
 
 ```bash
@@ -81,7 +85,7 @@ if [ ! -f /swapfile ]; then
     chmod 600 /swapfile
     mkswap /swapfile
     swapon /swapfile
-    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
     echo "Swap created."
 else
     echo "Swap already exists, skipping."
@@ -90,7 +94,7 @@ fi
 echo "=== Installing Docker Engine ==="
 if ! command -v docker &> /dev/null; then
     apt-get update
-    apt-get install -y ca-certificates curl
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg
     install -m 0755 -d /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
     chmod a+r /etc/apt/keyrings/docker.asc
@@ -162,7 +166,13 @@ git commit -m "feat: add VM bootstrap script (Docker, swap, basin user, dirs)"
 
 - [ ] **Step 1: Create pyproject.toml**
 
+Include an explicit build backend so `pip install .` works reliably in container builds.
+
 ```toml
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "basin"
 version = "0.1.0"
@@ -215,6 +225,8 @@ backups/
 
 - [ ] **Step 3: Create .env.example**
 
+Add a configurable webhook bind variable to avoid hard-coded host/IP assumptions across environments.
+
 ```bash
 # Basin — copy to .env and fill in op:// references
 # Start with: op run --env-file=.env -- docker compose up -d
@@ -232,9 +244,14 @@ TELLER_ACCESS_TOKEN="op://Basin/Teller/access_token"
 # Telegram (reuse reservation bot credentials)
 TELEGRAM_BOT_TOKEN="op://Basin/Telegram/bot_token"
 TELEGRAM_CHAT_ID="op://Basin/Telegram/chat_id"
+
+# Optional: externally published webhook port
+WEBHOOK_BIND="8075"
 ```
 
 - [ ] **Step 4: Create Dockerfile.collector**
+
+Harden cron environment handling by writing `/etc/basin.env` with restricted permissions because it contains secrets.
 
 ```dockerfile
 FROM python:3.12-slim
@@ -264,7 +281,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Dump runtime env vars to a file that cron jobs can source,
 # since cron does not inherit the container's environment.
-CMD ["sh", "-c", "env > /etc/basin.env && cron -f"]
+CMD ["sh", "-c", "umask 077 && env > /etc/basin.env && chmod 600 /etc/basin.env && cron -f"]
 ```
 
 - [ ] **Step 5: Create Dockerfile.webhook**
@@ -291,6 +308,8 @@ CMD ["uvicorn", "webhook.server:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 - [ ] **Step 6: Create docker-compose.yml**
+
+Use a configurable published port for webhook service and avoid binding to a single fixed host address in the base plan.
 
 ```yaml
 services:
@@ -352,7 +371,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "100.125.126.42:8075:8000"
+      - "${WEBHOOK_BIND:-8075}:8000"
     networks:
       - basin
     environment:
@@ -709,6 +728,8 @@ def load_config() -> Config:
 
 - [ ] **Step 2: Write shared/db.py**
 
+Ensure `bulk_upsert` handles dynamic SQL safely and falls back to `ON CONFLICT DO NOTHING` when no update columns remain.
+
 ```python
 """Database engine, session management, and upsert helpers."""
 
@@ -785,15 +806,28 @@ def bulk_upsert(
     if update_columns is None:
         update_columns = [c for c in columns if c not in conflict_columns]
 
+    # Safety check for dynamic SQL identifiers in table/column names
+    safe_ident = __import__("re").compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$")
+    if not safe_ident.match(table):
+        raise ValueError(f"Invalid table name: {table}")
+    for name in [*columns, *conflict_columns, *update_columns]:
+        if not safe_ident.match(name):
+            raise ValueError(f"Invalid column name: {name}")
+
     placeholders = ", ".join(f":{c}" for c in columns)
     col_list = ", ".join(columns)
     conflict_list = ", ".join(conflict_columns)
-    update_set = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_columns)
+
+    if update_columns:
+        update_set = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_columns)
+        conflict_action = f"DO UPDATE SET {update_set}"
+    else:
+        conflict_action = "DO NOTHING"
 
     sql = f"""
         INSERT INTO {table} ({col_list})
         VALUES ({placeholders})
-        ON CONFLICT ({conflict_list}) DO UPDATE SET {update_set}
+        ON CONFLICT ({conflict_list}) {conflict_action}
     """
 
     result = session.execute(text(sql), rows)
@@ -802,8 +836,10 @@ def bulk_upsert(
 
 - [ ] **Step 3: Write tests/conftest.py**
 
+Make fixture setup repeatable by resetting schemas before re-applying migration SQL.
+
 ```python
-"""Shared test fixtures — in-memory test database."""
+"""Shared test fixtures — Postgres-backed test database."""
 
 import os
 import pytest
@@ -828,6 +864,13 @@ def engine():
     with open(migration_path) as f:
         sql = f.read()
     with eng.connect() as conn:
+        conn.execute(text("""
+            DROP SCHEMA IF EXISTS healthkit CASCADE;
+            DROP SCHEMA IF EXISTS hevy CASCADE;
+            DROP SCHEMA IF EXISTS schwab CASCADE;
+            DROP SCHEMA IF EXISTS teller CASCADE;
+            DROP SCHEMA IF EXISTS basin CASCADE;
+        """))
         conn.execute(text(sql))
         conn.commit()
     yield eng
@@ -847,7 +890,7 @@ def session(engine):
     connection.close()
 ```
 
-- [ ] **Step 4: Write the failing test for bulk_upsert**
+- [ ] **Step 4: Write tests for bulk_upsert**
 
 ```python
 # tests/test_db.py
@@ -904,10 +947,12 @@ def test_bulk_upsert_empty_rows(session):
     assert count == 0
 ```
 
-- [ ] **Step 5: Run tests to verify they fail**
+- [ ] **Step 5: Run tests to verify behavior**
+
+(Updated wording: these are validation tests expected to pass when the local test database is available.)
 
 Run: `pytest tests/test_db.py -v`
-Expected: Tests should pass (implementation is already written). If Postgres isn't available locally, tests will error with a connection failure — that's expected for local dev without Docker.
+Expected: Tests should pass once local Postgres test DB is available. If Postgres is unavailable locally, a connection failure is expected in local dev environments without Docker.
 
 - [ ] **Step 6: Commit**
 
