@@ -1,0 +1,28 @@
+FROM python:3.12-slim
+
+RUN apt-get update && \
+    apt-get install -y cron postgresql-client && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY pyproject.toml .
+RUN pip install --no-cache-dir .
+
+COPY shared/ shared/
+COPY collectors/ collectors/
+COPY cli/ cli/
+COPY scripts/ scripts/
+COPY crontab /etc/cron.d/basin-cron
+
+RUN chmod 0644 /etc/cron.d/basin-cron && \
+    crontab /etc/cron.d/basin-cron && \
+    mkdir -p /var/log/basin && \
+    chmod +x scripts/*.sh
+
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Dump runtime env vars to a file that cron jobs can source,
+# since cron does not inherit the container's environment.
+CMD ["sh", "-c", "umask 077 && env > /etc/basin.env && chmod 600 /etc/basin.env && cron -f"]

@@ -1,0 +1,22 @@
+# Basin collector schedule
+# Each job sources /etc/basin.env because cron does not inherit Docker env vars.
+# Logs go to /var/log/basin/ inside the collector container.
+
+# Hevy — check drop folder daily at 6:00 AM UTC
+0 6 * * * . /etc/basin.env; cd /app && python -m collectors.hevy >> /var/log/basin/hevy.log 2>&1
+
+# HealthKit XML — check import folder daily at 6:05 AM UTC
+5 6 * * * . /etc/basin.env; cd /app && python -m collectors.healthkit >> /var/log/basin/healthkit.log 2>&1
+
+# Schwab — daily at 9:00 PM UTC (after US market close 4 PM ET)
+0 21 * * * . /etc/basin.env; cd /app && python -m collectors.schwab >> /var/log/basin/schwab.log 2>&1
+
+# Teller — daily at 7:00 AM UTC
+0 7 * * * . /etc/basin.env; cd /app && python -m collectors.teller >> /var/log/basin/teller.log 2>&1
+
+# Schwab token watchdog — every 6 hours
+0 */6 * * * . /etc/basin.env; cd /app && python -m collectors.schwab --check-token >> /var/log/basin/schwab.log 2>&1
+
+# Daily Postgres backup at 2:00 AM UTC
+0 2 * * * . /etc/basin.env; /app/scripts/backup.sh >> /var/log/basin/backup.log 2>&1
+
