@@ -26,6 +26,21 @@ METRIC_TYPE_MAP = {
     "HKQuantityTypeIdentifierDistanceWalkingRunning": "walking_running_distance",
     "HKQuantityTypeIdentifierFlightsClimbed": "flights_climbed",
     "HKQuantityTypeIdentifierRespiratoryRate": "respiratory_rate",
+    # Running performance
+    "HKQuantityTypeIdentifierRunningSpeed": "running_speed",
+    "HKQuantityTypeIdentifierRunningPower": "running_power",
+    "HKQuantityTypeIdentifierRunningStrideLength": "running_stride_length",
+    "HKQuantityTypeIdentifierRunningGroundContactTime": "running_ground_contact_time",
+    "HKQuantityTypeIdentifierRunningVerticalOscillation": "running_vertical_oscillation",
+    # Daily activity
+    "HKQuantityTypeIdentifierBasalEnergyBurned": "basal_energy",
+    "HKQuantityTypeIdentifierAppleExerciseTime": "exercise_time",
+    "HKQuantityTypeIdentifierAppleStandTime": "stand_time",
+    # Walking biomechanics
+    "HKQuantityTypeIdentifierWalkingSpeed": "walking_speed",
+    "HKQuantityTypeIdentifierWalkingStepLength": "walking_step_length",
+    "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage": "walking_double_support_pct",
+    "HKQuantityTypeIdentifierWalkingAsymmetryPercentage": "walking_asymmetry_pct",
 }
 
 # Map workout activity types to readable names
