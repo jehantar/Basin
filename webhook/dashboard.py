@@ -180,4 +180,65 @@ def get_strength_data(
     exercise: str | None = None,
 ):
     start_date, end_date = _parse_date_range(start, end)
-    return {**_response_metadata(start_date, end_date), "exercises": [], "sets": [], "prs": []}
+
+    with get_session() as session:
+        exercise_filter = ""
+        params: dict = {"start": start_date, "end": end_date}
+        if exercise:
+            exercise_filter = "AND e.name = :exercise"
+            params["exercise"] = exercise
+
+        sets_rows = session.execute(text(f"""
+            SELECT w.started_at::date as date,
+                   e.name as exercise,
+                   s.weight_lbs,
+                   s.reps,
+                   s.set_index,
+                   s.set_type
+            FROM hevy.sets s
+            JOIN hevy.exercises e ON s.exercise_id = e.id
+            JOIN hevy.workouts w ON s.workout_id = w.id
+            WHERE w.started_at::date BETWEEN :start AND :end
+              {exercise_filter}
+            ORDER BY w.started_at, e.name, s.set_index
+        """), params).fetchall()
+
+        sets = [{
+            "date": str(r[0]),
+            "exercise": r[1],
+            "weight_lbs": round(float(r[2])) if r[2] else None,
+            "reps": r[3],
+            "set_index": r[4],
+            "set_type": r[5],
+        } for r in sets_rows]
+
+        exercises = sorted(set(s["exercise"] for s in sets))
+
+        pr_rows = session.execute(text(f"""
+            SELECT DISTINCT ON (e.name)
+                   e.name as exercise,
+                   round(s.weight_lbs::numeric, 0) as max_lbs,
+                   w.started_at::date as date
+            FROM hevy.sets s
+            JOIN hevy.exercises e ON s.exercise_id = e.id
+            JOIN hevy.workouts w ON s.workout_id = w.id
+            WHERE w.started_at::date BETWEEN :start AND :end
+              AND s.set_type != 'warmup'
+              AND s.reps > 0
+              AND s.weight_lbs IS NOT NULL
+              {exercise_filter}
+            ORDER BY e.name, s.weight_lbs DESC, w.started_at ASC, s.set_index ASC
+        """), params).fetchall()
+
+        prs = [{
+            "exercise": r[0],
+            "max_lbs": int(r[1]),
+            "date": str(r[2]),
+        } for r in pr_rows]
+
+    return {
+        **_response_metadata(start_date, end_date),
+        "exercises": exercises,
+        "sets": sets,
+        "prs": prs,
+    }

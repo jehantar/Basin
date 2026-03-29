@@ -127,3 +127,76 @@ def test_vo2max_empty_range(client):
     data = resp.json()
     assert data["readings"] == []
     assert data["summary"]["latest"] is None
+
+
+def _seed_strength_data(session):
+    """Insert sample strength workout data."""
+    session.execute(text(
+        "INSERT INTO hevy.exercises (name) VALUES ('Bench Press'), ('Squat') ON CONFLICT DO NOTHING"
+    ))
+    bench_id = session.execute(
+        text("SELECT id FROM hevy.exercises WHERE name = 'Bench Press'")
+    ).scalar()
+    squat_id = session.execute(
+        text("SELECT id FROM hevy.exercises WHERE name = 'Squat'")
+    ).scalar()
+
+    for i, d in enumerate(["2026-01-10", "2026-02-15", "2026-03-20"]):
+        session.execute(text("""
+            INSERT INTO hevy.workouts (title, started_at, ended_at, duration_sec)
+            VALUES (:title, :st, :et, 3600)
+            ON CONFLICT (started_at) DO NOTHING
+        """), {"title": f"Workout {i}", "st": f"{d}T10:00:00", "et": f"{d}T11:00:00"})
+
+    w_ids = [r[0] for r in session.execute(
+        text("SELECT id FROM hevy.workouts ORDER BY started_at")
+    ).fetchall()]
+
+    sets_data = [
+        (w_ids[0], bench_id, 0, "normal", 135, 8),
+        (w_ids[0], bench_id, 1, "warmup", 95, 10),
+        (w_ids[1], bench_id, 0, "normal", 155, 6),
+        (w_ids[2], bench_id, 0, "normal", 175, 5),
+        (w_ids[0], squat_id, 0, "normal", 185, 8),
+        (w_ids[1], squat_id, 0, "normal", 205, 5),
+    ]
+    for w_id, ex_id, idx, stype, weight, reps in sets_data:
+        session.execute(text("""
+            INSERT INTO hevy.sets (workout_id, exercise_id, set_index, set_type, weight_lbs, reps)
+            VALUES (:w, :e, :i, :st, :wt, :r)
+            ON CONFLICT (workout_id, exercise_id, set_index) DO NOTHING
+        """), {"w": w_id, "e": ex_id, "i": idx, "st": stype, "wt": weight, "r": reps})
+
+
+def test_strength_returns_data(session, client):
+    _seed_strength_data(session)
+    resp = client.get("/api/fitness/strength?start=2026-01-01&end=2026-12-31")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "Bench Press" in data["exercises"]
+    assert "Squat" in data["exercises"]
+    assert len(data["sets"]) == 6
+    assert len(data["prs"]) == 2
+
+
+def test_strength_pr_excludes_warmup(session, client):
+    _seed_strength_data(session)
+    resp = client.get("/api/fitness/strength?start=2026-01-01&end=2026-12-31")
+    data = resp.json()
+    bench_pr = next(p for p in data["prs"] if p["exercise"] == "Bench Press")
+    assert bench_pr["max_lbs"] == 175
+
+
+def test_strength_filter_by_exercise(session, client):
+    _seed_strength_data(session)
+    resp = client.get("/api/fitness/strength?start=2026-01-01&end=2026-12-31&exercise=Squat")
+    data = resp.json()
+    assert all(s["exercise"] == "Squat" for s in data["sets"])
+
+
+def test_strength_empty_range(client):
+    resp = client.get("/api/fitness/strength?start=2020-01-01&end=2020-12-31")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["sets"] == []
+    assert data["prs"] == []
