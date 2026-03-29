@@ -2,16 +2,28 @@
 
 ## Overview
 
-A web-based fitness dashboard served by the existing Basin webhook container, accessible over Tailscale at `http://100.125.126.42:8075/dashboard`. Displays three panels of fitness data from the Basin Postgres database using interactive Plotly.js charts.
+A web-based fitness dashboard served by the existing Basin webhook container at `/dashboard` on the Basin HTTP service. Displays three panels of fitness data from the Basin Postgres database using interactive Plotly.js charts.
+
+## Goals
+
+- Provide quick daily visibility into running, VO2 max, and strength trends.
+- Support drill-down analysis for recent progress and long-term trajectory.
+- Make data interpretation consistent by defining calculation rules and units.
+
+## Non-Goals
+
+- Authentication changes (Tailscale-only network provides access control).
+- Real-time updates / WebSocket (refresh the page for new data).
+- Complex caching layer (queries expected to be fast for current data volume).
 
 ## Layout
 
 **Summary + Drill-Down pattern:**
 
 - **Top row:** 3 summary cards showing latest stats with sparkline trends
-  - Running Pace (blue) — latest avg speed in mi/hr, sparkline of recent runs
+  - Running Pace (blue) — latest pace and speed, sparkline of recent runs
   - VO2 Max (purple) — latest reading, sparkline of trend over time
-  - Strength (green) — heaviest lift PR, sparkline of training volume
+  - Strength (green) — heaviest qualifying PR, sparkline of training volume
 - **Detail panel:** Below the cards, shows the full interactive chart for the selected card
 - Clicking a card swaps the detail panel content
 - Default: Running Performance expanded on load
@@ -21,40 +33,119 @@ A web-based fitness dashboard served by the existing Basin webhook container, ac
 - **Plotly.js** — interactive charts (loaded from CDN)
 - **FastAPI** — JSON API endpoints added to existing webhook server
 - **Vanilla HTML/CSS/JS** — no build step, single HTML template served by FastAPI
-- **Dark theme** — matches the approved mockup (#0f172a background, blue/purple/green accents)
+- **Dark theme** — matches the approved mockup (`#0f172a` background, blue/purple/green accents)
+
+## Data & Calculation Rules
+
+### Date/time semantics
+
+- All API date filtering and chart bucketing are performed in a single dashboard timezone.
+- **Dashboard timezone default:** UTC (can be switched later if user-level timezone preference is added).
+- Date grouping for daily series uses: `DATE(timestamp AT TIME ZONE 'UTC')`.
+- Range semantics are **inclusive** for both start and end dates in API query params.
+
+### Units and display formatting
+
+- Running speed canonical API unit: `mi/hr` (`avg_speed_mph`).
+- Running pace display unit: `min/mi` (derived from speed, rounded to `mm:ss`).
+- Duration displayed in minutes with 1 decimal place.
+- VO2 max displayed as `mL/kg/min` with 1 decimal place.
+- Strength weight displayed in `lbs` with whole-number rounding.
+
+### Missing/partial data rules
+
+- If run power is unavailable, return `avg_power: null`.
+- If a metric has no data in range, return an empty array and a `summary` object with nullable values.
+- API responses are sorted ascending by date unless otherwise specified.
+
+### Strength PR definition
+
+- PR is the maximum `weight_lbs` per exercise across qualifying sets.
+- Qualifying sets exclude warmup sets and sets with `reps <= 0`.
+- Tie-break order for identical PR weights:
+  1) earliest date,
+  2) lowest set index.
 
 ## API Endpoints
 
 All endpoints added to the existing `webhook/server.py`.
 
+### Common query params
+
+- `start` (ISO date, optional)
+- `end` (ISO date, optional)
+
+If omitted:
+- `start` defaults to 6 months prior to current date in dashboard timezone.
+- `end` defaults to current date in dashboard timezone.
+
+Validation:
+- Return HTTP `400` for invalid ISO date format or if `start > end`.
+
+### Common response metadata
+
+Every fitness endpoint returns:
+
+```json
+{
+  "range_start": "2025-10-01",
+  "range_end": "2026-03-29",
+  "timezone": "UTC",
+  "generated_at": "2026-03-29T18:20:00Z",
+  "...": "endpoint-specific fields"
+}
+```
+
 ### `GET /dashboard`
+
 Serves the HTML dashboard page (single file with embedded CSS/JS).
 
 ### `GET /api/fitness/running`
+
 Query params: `start` (ISO date), `end` (ISO date)
 
 Returns JSON:
+
 ```json
 {
+  "range_start": "2025-10-01",
+  "range_end": "2026-03-29",
+  "timezone": "UTC",
+  "generated_at": "2026-03-29T18:20:00Z",
   "runs": [
-    {"date": "2026-03-25", "avg_speed": 5.81, "duration_min": 39.2, "avg_power": 245}
+    {
+      "date": "2026-03-25",
+      "avg_speed_mph": 5.81,
+      "duration_min": 39.2,
+      "avg_power": 245
+    }
   ],
   "summary": {
     "total_runs": 74,
-    "avg_speed": 5.7,
-    "latest_speed": 5.81
+    "avg_speed_mph": 5.7,
+    "latest_speed_mph": 5.81,
+    "latest_pace_min_per_mile": "10:20"
   }
 }
 ```
 
-Source: `healthkit.metrics` (metric_type = 'running_speed'), grouped by date. Duration from `healthkit.workouts` (workout_type = 'Running'). Running power from `healthkit.metrics` (metric_type = 'running_power').
+Source:
+- `healthkit.metrics` (`metric_type = 'running_speed'`) grouped by date
+- `healthkit.workouts` (`workout_type = 'Running'`) for duration
+- `healthkit.metrics` (`metric_type = 'running_power'`) for running power
 
 ### `GET /api/fitness/vo2max`
+
 Query params: `start` (ISO date), `end` (ISO date)
 
 Returns JSON:
+
 ```json
 {
+  "range_start": "2025-10-01",
+  "range_end": "2026-03-29",
+  "timezone": "UTC",
+  "generated_at": "2026-03-29T18:20:00Z",
   "readings": [
     {"date": "2026-03-25", "vo2max": 46.2}
   ],
@@ -66,17 +157,30 @@ Returns JSON:
 }
 ```
 
-Source: `healthkit.metrics` (metric_type = 'vo2max').
+Source: `healthkit.metrics` (`metric_type = 'vo2max'`).
 
 ### `GET /api/fitness/strength`
-Query params: `start` (ISO date), `end` (ISO date), `exercise` (optional, filter by name)
+
+Query params: `start` (ISO date), `end` (ISO date), `exercise` (optional exact-name filter)
 
 Returns JSON:
+
 ```json
 {
-  "exercises": ["Deadlift (Trap bar)", "Incline Bench Press (Dumbbell)", ...],
+  "range_start": "2025-10-01",
+  "range_end": "2026-03-29",
+  "timezone": "UTC",
+  "generated_at": "2026-03-29T18:20:00Z",
+  "exercises": ["Deadlift (Trap bar)", "Incline Bench Press (Dumbbell)"],
   "sets": [
-    {"date": "2026-03-28", "exercise": "Deadlift (Trap bar)", "weight_lbs": 210, "reps": 7, "set_index": 0}
+    {
+      "date": "2026-03-28",
+      "exercise": "Deadlift (Trap bar)",
+      "weight_lbs": 210,
+      "reps": 7,
+      "set_index": 0,
+      "set_type": "normal"
+    }
   ],
   "prs": [
     {"exercise": "Deadlift (Trap bar)", "max_lbs": 210, "date": "2026-03-28"}
@@ -91,9 +195,9 @@ Source: `hevy.sets` joined with `hevy.exercises` and `hevy.workouts`.
 Single HTML file served by FastAPI at `/dashboard`. Contains:
 
 - Inline CSS (dark theme matching mockup)
-- 3 summary cards with sparklines (rendered via small Plotly spark charts or CSS bars)
+- 3 summary cards with sparklines
 - Detail panel area that swaps content on card click
-- Plotly.js loaded from CDN (`https://cdn.plot.ly/plotly-2.35.2.min.js`)
+- Plotly.js loaded from CDN (version pinned in implementation; spec does not require a specific patch number)
 - Vanilla JS that:
   - Fetches data from `/api/fitness/*` endpoints on load
   - Renders Plotly charts in the detail panel
@@ -104,43 +208,75 @@ Single HTML file served by FastAPI at `/dashboard`. Contains:
 ## Chart Configurations
 
 ### Running Performance (detail panel)
-- **Line chart:** avg speed (mi/hr) per run date, with filled area below
-- **Hover:** date, speed, duration
-- **X axis:** date, **Y axis:** speed in mi/hr
-- **Table below chart:** 5 most recent runs (date, pace, duration, avg power)
+
+- **Line chart:** average speed (`mi/hr`) per run date, with filled area below
+- **Hover:** date, speed, pace, duration, average power
+- **X axis:** date, **Y axis:** speed in `mi/hr`
+- **Table below chart:** 5 most recent runs (date, pace, speed, duration, avg power)
 
 ### VO2 Max (detail panel)
+
 - **Line chart with markers:** VO2 max readings over time
 - **Hover:** date, value
 - **Horizontal reference line** at peak value (dashed, labeled)
-- **X axis:** date, **Y axis:** mL/kg/min
+- **X axis:** date, **Y axis:** `mL/kg/min`
 
 ### Weight Progression (detail panel)
-- **Dropdown** to select exercise (default: exercise with most sets)
-- **Scatter + line chart:** weight per set over time, colored by set_type (normal vs warmup)
-- **Hover:** date, weight, reps, set index
-- **X axis:** date, **Y axis:** weight in lbs
+
+- **Dropdown** to select exercise (default: exercise with most qualifying sets in range)
+- **Scatter + line chart:** weight per set over time, colored by `set_type` (normal vs warmup)
+- **Hover:** date, weight, reps, set index, set type
+- **X axis:** date, **Y axis:** weight in `lbs`
 - **PRs highlighted** with markers
+
+### Additional Workout Views (planned)
+
+- **Consistency view:** workouts per week + rolling 4-week average
+- **Training load view:**
+  - Running load (duration and/or distance trend)
+  - Strength volume (`weight × reps × sets`) trend
+- **Exercise balance view:** weekly split by movement category
 
 ## Time Range Filters
 
 Visible in the detail panel above the chart:
+
 - Preset buttons: **3M** | **6M** | **1Y** | **All**
 - Date picker: start date and end date inputs
 - Clicking a preset updates the date pickers and re-fetches data
 - Changing date pickers re-fetches data
 - Default: 6M
 
+## State Handling
+
+### Loading
+
+- Card and detail panel show loading placeholders while API requests are pending.
+
+### Empty states
+
+- If no data exists in selected range, chart area shows a “No data for selected range” message with a quick action to reset to 6M.
+
+### Error states
+
+- Show inline error banner for failed fetch with retry button.
+- Keep prior successfully loaded panel visible when refresh fails.
+
+## Accessibility & Interaction
+
+- All card selections and filter controls are keyboard-accessible.
+- Focus states are visible on dark theme controls.
+- Color choices must meet WCAG AA contrast where practical.
+
+## Performance Expectations
+
+- Target API latency: p95 < 400ms for default 6M range.
+- Server enforces maximum date span of 5 years to avoid pathological queries.
+- Ensure indexes exist for key query fields used by running, vo2max, and strength endpoints.
+
 ## File Changes
 
 - **Modify:** `webhook/server.py` — add `/dashboard`, `/api/fitness/running`, `/api/fitness/vo2max`, `/api/fitness/strength` endpoints
 - **Create:** `webhook/dashboard.html` — single-file HTML dashboard with embedded CSS/JS
 
-No new dependencies. Plotly.js loaded from CDN. No changes to Docker or deployment — the webhook container already serves HTTP.
-
-## Out of Scope
-
-- Authentication (Tailscale-only network provides access control)
-- Mobile-specific responsive layout (desktop-first, readable on phone but not optimized)
-- Real-time updates / WebSocket (refresh the page for new data)
-- Caching (queries are fast enough against this data volume)
+No new Python dependencies required. Plotly.js loaded from CDN. No Docker or deployment changes required.
