@@ -127,19 +127,6 @@
   .date-input:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
   .filters-sep { color: #475569; margin: 0 4px; }
 
-  /* Exercise dropdown */
-  .exercise-select {
-    background: #0f172a;
-    color: #e2e8f0;
-    border: 1px solid #475569;
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 0.85rem;
-    margin-left: auto;
-    outline: none;
-  }
-  .exercise-select:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
-
   /* Chart area */
   .chart-area { width: 100%; min-height: 320px; }
 
@@ -221,6 +208,49 @@
   }
   .error-banner button:hover { background: #b91c1c; }
 
+  /* Strength tabs */
+  .workout-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .workout-tab {
+    padding: 6px 14px; border-radius: 8px; cursor: pointer;
+    font-size: 0.8rem; font-weight: 600; border: 2px solid #334155;
+    background: #1e293b; color: #94a3b8; transition: all 0.15s;
+  }
+  .workout-tab:hover { border-color: #475569; }
+  .workout-tab.active { border-color: #22c55e; color: #22c55e; background: #0f2a1a; }
+  .workout-tab:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
+  .workout-tab .tab-count { font-weight: 400; color: #475569; font-size: 0.7rem; }
+
+  /* Trend summary */
+  .trend-cards { display: flex; gap: 12px; margin-bottom: 16px; }
+  .trend-card { background: #0f172a; border-radius: 8px; padding: 10px 14px; flex: 1; border: 1px solid #334155; }
+  .trend-card-label { font-size: 0.65rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .trend-card-value { font-size: 1.2rem; font-weight: 700; }
+  .trend-card-sub { font-size: 0.7rem; color: #64748b; margin-top: 2px; }
+
+  /* Workout log */
+  .workout-log { max-height: 400px; overflow-y: auto; border-radius: 8px; border: 1px solid #334155; margin-top: 16px; }
+  .wk-row { background: #1e293b; border-bottom: 1px solid #0f172a; }
+  .wk-header {
+    display: grid; grid-template-columns: 80px 1fr 60px 55px 90px;
+    padding: 10px 14px; align-items: center; font-size: 0.8rem;
+    cursor: pointer; transition: background 0.15s; outline: none;
+  }
+  .wk-header:hover, .wk-header:focus-visible { background: #253347; }
+  .wk-date { color: #94a3b8; }
+  .wk-title { color: #f1f5f9; font-weight: 600; }
+  .wk-stat { color: #64748b; text-align: center; }
+  .wk-volume { color: #22c55e; font-weight: 600; text-align: right; }
+  .wk-detail { max-height: 0; overflow: hidden; transition: max-height 0.3s; background: #0f172a; }
+  .wk-detail.open { max-height: 800px; }
+  .wk-detail-inner { padding: 10px 14px; }
+  .wk-exercise { margin-bottom: 8px; }
+  .wk-exercise-name { color: #94a3b8; font-size: 0.8rem; font-weight: 600; display: flex; justify-content: space-between; margin-bottom: 3px; }
+  .wk-exercise-vol { color: #475569; font-weight: 400; }
+  .wk-set { display: flex; gap: 10px; font-size: 0.78rem; padding: 1px 0; }
+  .wk-set-label { color: #475569; width: 45px; }
+  .wk-set-weight { color: #22c55e; width: 65px; }
+  .wk-set-reps { color: #94a3b8; }
+
   /* Hide panels */
   .panel { display: none; }
   .panel.active { display: block; }
@@ -278,8 +308,6 @@
     <input type="date" class="date-input" id="startDate" tabindex="0" aria-label="Start date">
     <span class="filters-sep">&ndash;</span>
     <input type="date" class="date-input" id="endDate" tabindex="0" aria-label="End date">
-    <select class="exercise-select" id="exerciseSelect" tabindex="0" aria-label="Exercise filter" style="display:none;">
-    </select>
   </div>
 
   <div class="panel" id="panelRunning">
@@ -306,7 +334,26 @@
   </div>
 
   <div class="panel" id="panelStrength">
+    <div class="workout-tabs" id="workoutTabs" role="tablist"></div>
+    <div class="trend-cards">
+      <div class="trend-card">
+        <div class="trend-card-label">Volume Trend</div>
+        <div class="trend-card-value" id="trendVolume">---</div>
+        <div class="trend-card-sub" id="trendVolumeSub"></div>
+      </div>
+      <div class="trend-card">
+        <div class="trend-card-label">Peak Session</div>
+        <div class="trend-card-value" id="trendPeak">---</div>
+        <div class="trend-card-sub" id="trendPeakSub"></div>
+      </div>
+      <div class="trend-card">
+        <div class="trend-card-label">Sessions</div>
+        <div class="trend-card-value" id="trendSessions">---</div>
+        <div class="trend-card-sub" id="trendSessionsSub"></div>
+      </div>
+    </div>
     <div class="chart-area" id="chartStrength"></div>
+    <div class="workout-log" id="workoutLog"></div>
   </div>
 </div>
 
@@ -328,7 +375,6 @@
   var cardStrength = $('cardStrength');
   var startInput   = $('startDate');
   var endInput     = $('endDate');
-  var exSelect     = $('exerciseSelect');
   var errorBanner  = $('errorBanner');
   var errorMsg     = $('errorMsg');
   var retryBtn     = $('retryBtn');
@@ -492,28 +538,23 @@
 
   function updateStrengthCard() {
     if (!strData) return;
-    var prs = strData.prs;
-    if (prs.length > 0) {
-      var best = prs[0];
-      for (var i = 1; i < prs.length; i++) {
-        if (prs[i].max_lbs > best.max_lbs) best = prs[i];
-      }
-      $('strengthValue').textContent = best.max_lbs + ' lbs';
-      $('strengthSub').textContent = best.exercise;
+    var workouts = strData.workouts || [];
+    if (workouts.length > 0) {
+      var latest = workouts[workouts.length - 1];
+      $('strengthValue').textContent = latest.volume_lbs.toLocaleString() + ' lbs';
+      $('strengthSub').textContent = latest.title;
     } else {
       $('strengthValue').textContent = '---';
-      $('strengthSub').textContent = 'No PRs in range';
+      $('strengthSub').textContent = 'No workouts in range';
     }
-    var byDate = {};
-    strData.sets.forEach(function(s) {
-      if (s.set_type !== 'warmup' && s.weight_lbs != null) {
-        byDate[s.date] = Math.max(byDate[s.date] || 0, s.weight_lbs);
-      }
-    });
-    var dates = Object.keys(byDate).sort();
-    var vals = dates.map(function(d) { return byDate[d]; });
-    $('strengthTrend').textContent = strData.exercises.length + ' exercises tracked';
-    renderSparkline('sparkStrength', vals.slice(-20), '#22c55e');
+    // Sparkline: volume per workout across all types
+    var vols = workouts.map(function(w) { return w.volume_lbs; });
+    if (vols.length > 0) {
+      $('strengthTrend').textContent = workouts.length + ' sessions in range';
+      renderSparkline('sparkStrength', vols.slice(-20), '#22c55e');
+    } else {
+      $('strengthTrend').textContent = '';
+    }
   }
 
   // -- Panel rendering --
@@ -647,94 +688,267 @@
     );
   }
 
+  var activeWorkoutTitle = null;
+
   function renderStrengthPanel() {
-    var container = $('chartStrength');
-    if (!strData || strData.sets.length === 0) {
+    if (!strData || !strData.workouts || strData.workouts.length === 0) {
       showEmpty('chartStrength');
       return;
     }
 
-    var selectedEx = exSelect.value;
-    var filtered = selectedEx
-      ? strData.sets.filter(function(s) { return s.exercise === selectedEx; })
-      : strData.sets;
+    var titles = strData.workout_titles || [];
+    if (titles.length === 0) return;
 
+    // Default to first tab if current selection not in list
+    if (activeWorkoutTitle === null || titles.indexOf(activeWorkoutTitle) === -1) {
+      activeWorkoutTitle = titles[0];
+    }
+
+    // Count workouts per title
+    var titleCounts = {};
+    strData.workouts.forEach(function(w) {
+      titleCounts[w.title] = (titleCounts[w.title] || 0) + 1;
+    });
+
+    // Build tabs
+    var tabContainer = $('workoutTabs');
+    clearChildren(tabContainer);
+    titles.forEach(function(title) {
+      var tab = document.createElement('button');
+      tab.className = 'workout-tab' + (title === activeWorkoutTitle ? ' active' : '');
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('tabindex', '0');
+      tab.setAttribute('aria-selected', title === activeWorkoutTitle ? 'true' : 'false');
+
+      var nameSpan = document.createElement('span');
+      nameSpan.textContent = title + ' ';
+      tab.appendChild(nameSpan);
+
+      var countSpan = document.createElement('span');
+      countSpan.className = 'tab-count';
+      countSpan.textContent = '(' + (titleCounts[title] || 0) + ')';
+      tab.appendChild(countSpan);
+
+      tab.addEventListener('click', function() {
+        activeWorkoutTitle = title;
+        renderStrengthPanel();
+      });
+      tab.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          activeWorkoutTitle = title;
+          renderStrengthPanel();
+        }
+      });
+
+      tabContainer.appendChild(tab);
+    });
+
+    // Filter workouts by active title
+    var filtered = strData.workouts.filter(function(w) {
+      return w.title === activeWorkoutTitle;
+    });
+
+    renderStrengthContent(filtered);
+  }
+
+  function renderStrengthContent(filtered) {
+    // Update trend cards
+    var trendVolEl = $('trendVolume');
+    var trendVolSub = $('trendVolumeSub');
+    var trendPeakEl = $('trendPeak');
+    var trendPeakSub = $('trendPeakSub');
+    var trendSessEl = $('trendSessions');
+    var trendSessSub = $('trendSessionsSub');
+
+    if (filtered.length < 2) {
+      trendVolEl.textContent = '---';
+      trendVolSub.textContent = filtered.length < 2 ? 'Need 2+ sessions' : '';
+    } else {
+      var first = filtered[0];
+      var last = filtered[filtered.length - 1];
+      if (first.volume_lbs <= 0) {
+        trendVolEl.textContent = '---';
+        trendVolSub.textContent = '';
+      } else {
+        var pctChange = ((last.volume_lbs - first.volume_lbs) / first.volume_lbs * 100);
+        trendVolEl.textContent = (pctChange >= 0 ? '+' : '') + pctChange.toFixed(1) + '%';
+        trendVolSub.textContent = first.volume_lbs.toLocaleString() + ' \u2192 ' + last.volume_lbs.toLocaleString() + ' lbs';
+      }
+    }
+
+    // Peak session
+    if (filtered.length === 0) {
+      trendPeakEl.textContent = '---';
+      trendPeakSub.textContent = '';
+    } else {
+      var peak = filtered[0];
+      for (var i = 1; i < filtered.length; i++) {
+        if (filtered[i].volume_lbs > peak.volume_lbs) peak = filtered[i];
+      }
+      trendPeakEl.textContent = peak.volume_lbs.toLocaleString() + ' lbs';
+      trendPeakSub.textContent = fmtDate(peak.date);
+    }
+
+    // Sessions count
+    trendSessEl.textContent = filtered.length;
+    trendSessSub.textContent = filtered.length === 1 ? 'session' : 'sessions';
+
+    // Plotly volume bar chart
+    var container = $('chartStrength');
     if (filtered.length === 0) {
       showEmpty('chartStrength');
-      return;
+    } else {
+      var dates = filtered.map(function(w) { return w.date; });
+      var volumes = filtered.map(function(w) { return w.volume_lbs; });
+
+      // Build hover text with volume, sets, and session-over-session delta %
+      var hoverText = filtered.map(function(w, idx) {
+        var volStr = w.volume_lbs.toLocaleString() + ' lbs';
+        var setStr = w.set_count + ' sets';
+        var delta = '';
+        if (idx > 0 && filtered[idx - 1].volume_lbs > 0) {
+          var d = ((w.volume_lbs - filtered[idx - 1].volume_lbs) / filtered[idx - 1].volume_lbs * 100);
+          delta = '<br>\u0394 ' + (d >= 0 ? '+' : '') + d.toFixed(1) + '%';
+        }
+        return volStr + '<br>' + setStr + delta;
+      });
+
+      Plotly.newPlot(container, [{
+        x: dates,
+        y: volumes,
+        type: 'bar',
+        marker: { color: '#22c55e', opacity: 0.85 },
+        text: hoverText,
+        hovertemplate: '%{x}<br>%{text}<extra></extra>'
+      }], baseLayout('Volume per Session', 'Date', 'Volume (lbs)'), plotConfig);
     }
 
-    // Build PR lookup: exercise+date+weight -> is PR
-    var prSet = {};
-    strData.prs.forEach(function(pr) {
-      prSet[pr.exercise + '|' + pr.date + '|' + pr.max_lbs] = true;
-    });
+    buildWorkoutLog(filtered);
+  }
 
-    // Split into normal, warmup, PR
-    var normal = { x: [], y: [], text: [] };
-    var warmup = { x: [], y: [], text: [] };
-    var prMarkers = { x: [], y: [], text: [] };
+  function buildWorkoutLog(filtered) {
+    var logEl = $('workoutLog');
+    clearChildren(logEl);
 
-    filtered.forEach(function(s) {
-      if (s.weight_lbs == null) return;
-      var label = s.exercise + ' | ' + s.reps + ' reps | Set ' + (s.set_index + 1) + ' | ' + s.set_type;
-      if (s.set_type === 'warmup') {
-        warmup.x.push(s.date);
-        warmup.y.push(s.weight_lbs);
-        warmup.text.push(label);
-      } else {
-        normal.x.push(s.date);
-        normal.y.push(s.weight_lbs);
-        normal.text.push(label);
+    // Most recent first
+    var reversed = filtered.slice().reverse();
+
+    reversed.forEach(function(w, idx) {
+      var row = document.createElement('div');
+      row.className = 'wk-row';
+
+      var detailId = 'wk-detail-' + idx;
+
+      var header = document.createElement('div');
+      header.className = 'wk-header';
+      header.setAttribute('tabindex', '0');
+      header.setAttribute('role', 'button');
+      header.setAttribute('aria-expanded', 'false');
+      header.setAttribute('aria-controls', detailId);
+
+      var dateEl = document.createElement('span');
+      dateEl.className = 'wk-date';
+      var d = new Date(w.date + 'T00:00:00');
+      dateEl.textContent = (d.getMonth() + 1) + '/' + d.getDate();
+      header.appendChild(dateEl);
+
+      var titleEl = document.createElement('span');
+      titleEl.className = 'wk-title';
+      titleEl.textContent = w.title;
+      header.appendChild(titleEl);
+
+      var exCount = document.createElement('span');
+      exCount.className = 'wk-stat';
+      exCount.textContent = w.exercise_count + 'ex';
+      header.appendChild(exCount);
+
+      var setCount = document.createElement('span');
+      setCount.className = 'wk-stat';
+      setCount.textContent = w.set_count + 's';
+      header.appendChild(setCount);
+
+      var volEl = document.createElement('span');
+      volEl.className = 'wk-volume';
+      volEl.textContent = w.volume_lbs.toLocaleString() + ' lbs';
+      header.appendChild(volEl);
+
+      // Detail section
+      var detail = document.createElement('div');
+      detail.className = 'wk-detail';
+      detail.id = detailId;
+
+      var detailInner = document.createElement('div');
+      detailInner.className = 'wk-detail-inner';
+
+      (w.exercises || []).forEach(function(ex) {
+        var exDiv = document.createElement('div');
+        exDiv.className = 'wk-exercise';
+
+        var nameRow = document.createElement('div');
+        nameRow.className = 'wk-exercise-name';
+
+        var nameSpan = document.createElement('span');
+        nameSpan.textContent = ex.name;
+        nameRow.appendChild(nameSpan);
+
+        var volSpan = document.createElement('span');
+        volSpan.className = 'wk-exercise-vol';
+        volSpan.textContent = ex.volume_lbs.toLocaleString() + ' lbs';
+        nameRow.appendChild(volSpan);
+
+        exDiv.appendChild(nameRow);
+
+        (ex.sets || []).forEach(function(s) {
+          var setDiv = document.createElement('div');
+          setDiv.className = 'wk-set';
+
+          var labelSpan = document.createElement('span');
+          labelSpan.className = 'wk-set-label';
+          labelSpan.textContent = 'Set ' + (s.set_index + 1);
+          setDiv.appendChild(labelSpan);
+
+          var weightSpan = document.createElement('span');
+          weightSpan.className = 'wk-set-weight';
+          weightSpan.textContent = (s.weight_lbs != null && s.weight_lbs > 0) ? s.weight_lbs + ' lbs' : 'BW';
+          setDiv.appendChild(weightSpan);
+
+          var repsSpan = document.createElement('span');
+          repsSpan.className = 'wk-set-reps';
+          repsSpan.textContent = s.reps + ' reps';
+          setDiv.appendChild(repsSpan);
+
+          exDiv.appendChild(setDiv);
+        });
+
+        detailInner.appendChild(exDiv);
+      });
+
+      detail.appendChild(detailInner);
+
+      // Toggle handler
+      function toggleDetail() {
+        var expanded = header.getAttribute('aria-expanded') === 'true';
+        header.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        if (expanded) {
+          detail.classList.remove('open');
+        } else {
+          detail.classList.add('open');
+        }
       }
-      // Check if this set matches a PR
-      var key = s.exercise + '|' + s.date + '|' + s.weight_lbs;
-      if (prSet[key] && s.set_type !== 'warmup') {
-        prMarkers.x.push(s.date);
-        prMarkers.y.push(s.weight_lbs);
-        prMarkers.text.push('PR: ' + s.exercise + ' ' + s.weight_lbs + ' lbs');
-      }
+
+      header.addEventListener('click', toggleDetail);
+      header.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggleDetail();
+        }
+      });
+
+      row.appendChild(header);
+      row.appendChild(detail);
+      logEl.appendChild(row);
     });
-
-    var traces = [];
-    if (warmup.x.length > 0) {
-      traces.push({
-        x: warmup.x, y: warmup.y,
-        type: 'scatter', mode: 'markers',
-        marker: { color: '#64748b', size: 6, opacity: 0.5 },
-        text: warmup.text,
-        hovertemplate: '%{x}<br>%{y} lbs<br>%{text}<extra></extra>',
-        name: 'Warmup'
-      });
-    }
-    if (normal.x.length > 0) {
-      traces.push({
-        x: normal.x, y: normal.y,
-        type: 'scatter', mode: 'markers',
-        marker: { color: '#22c55e', size: 7 },
-        text: normal.text,
-        hovertemplate: '%{x}<br>%{y} lbs<br>%{text}<extra></extra>',
-        name: 'Working Sets'
-      });
-    }
-    if (prMarkers.x.length > 0) {
-      traces.push({
-        x: prMarkers.x, y: prMarkers.y,
-        type: 'scatter', mode: 'markers',
-        marker: { color: '#eab308', size: 14, symbol: 'star' },
-        text: prMarkers.text,
-        hovertemplate: '%{x}<br>%{y} lbs<br>%{text}<extra></extra>',
-        name: 'PR'
-      });
-    }
-
-    var title = selectedEx ? selectedEx : 'Strength Progression';
-    Plotly.newPlot(container, traces,
-      baseLayout(title, 'Date', 'Weight (lbs)', {
-        legend: { font: { color: '#94a3b8' }, bgcolor: 'rgba(0,0,0,0)' }
-      }),
-      plotConfig
-    );
   }
 
   // -- Panel switching --
@@ -748,8 +962,6 @@
     $('panelRunning').className  = 'panel' + (name === 'running'  ? ' active' : '');
     $('panelVo2max').className   = 'panel' + (name === 'vo2max'   ? ' active' : '');
     $('panelStrength').className = 'panel' + (name === 'strength' ? ' active' : '');
-
-    exSelect.style.display = name === 'strength' ? '' : 'none';
 
     if (name === 'running')  renderRunningPanel();
     if (name === 'vo2max')   renderVo2maxPanel();
@@ -795,7 +1007,6 @@
       updateRunningCard();
       updateVo2maxCard();
       updateStrengthCard();
-      populateExercises();
       switchPanel(activePanel);
 
     }).catch(function(err) {
@@ -803,44 +1014,6 @@
     });
   }
 
-  function populateExercises() {
-    if (!strData) return;
-    var current = exSelect.value;
-    clearChildren(exSelect);
-
-    var optAll = document.createElement('option');
-    optAll.value = '';
-    optAll.textContent = 'All exercises';
-    exSelect.appendChild(optAll);
-
-    var setCounts = {};
-    strData.sets.forEach(function(s) {
-      if (s.set_type !== 'warmup') {
-        setCounts[s.exercise] = (setCounts[s.exercise] || 0) + 1;
-      }
-    });
-
-    strData.exercises.forEach(function(name) {
-      var opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      exSelect.appendChild(opt);
-    });
-
-    if (current && strData.exercises.indexOf(current) !== -1) {
-      exSelect.value = current;
-    } else if (strData.exercises.length > 0) {
-      var bestEx = strData.exercises[0];
-      var bestCount = 0;
-      Object.keys(setCounts).forEach(function(ex) {
-        if (setCounts[ex] > bestCount) {
-          bestCount = setCounts[ex];
-          bestEx = ex;
-        }
-      });
-      exSelect.value = bestEx;
-    }
-  }
 
   // -- Preset handling --
   function setPreset(months) {
@@ -895,10 +1068,6 @@
     document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
     activePreset = null;
     loadAll();
-  });
-
-  exSelect.addEventListener('change', function() {
-    if (activePanel === 'strength') renderStrengthPanel();
   });
 
   retryBtn.addEventListener('click', function() { loadAll(); });
