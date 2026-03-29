@@ -141,7 +141,36 @@ def _speed_to_pace(speed_mph: float) -> str:
 @router.get("/api/fitness/vo2max")
 def get_vo2max_data(start: str | None = None, end: str | None = None):
     start_date, end_date = _parse_date_range(start, end)
-    return {**_response_metadata(start_date, end_date), "readings": [], "summary": {"latest": None, "peak": None, "peak_date": None}}
+
+    with get_session() as session:
+        rows = session.execute(text("""
+            SELECT (recorded_at AT TIME ZONE 'UTC')::date as date,
+                   round(value::numeric, 1) as vo2max
+            FROM healthkit.metrics
+            WHERE metric_type = 'vo2max'
+              AND (recorded_at AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+            ORDER BY date
+        """), {"start": start_date, "end": end_date}).fetchall()
+
+        readings = [{"date": str(r[0]), "vo2max": float(r[1])} for r in rows]
+
+        # Peak is across ALL time, not just the filtered range
+        peak_row = session.execute(text("""
+            SELECT round(value::numeric, 1) as vo2max,
+                   (recorded_at AT TIME ZONE 'UTC')::date as date
+            FROM healthkit.metrics
+            WHERE metric_type = 'vo2max'
+            ORDER BY value DESC
+            LIMIT 1
+        """)).fetchone()
+
+        summary = {
+            "latest": readings[-1]["vo2max"] if readings else None,
+            "peak": float(peak_row[0]) if peak_row else None,
+            "peak_date": str(peak_row[1]) if peak_row else None,
+        }
+
+    return {**_response_metadata(start_date, end_date), "readings": readings, "summary": summary}
 
 
 @router.get("/api/fitness/strength")

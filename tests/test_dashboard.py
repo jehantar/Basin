@@ -96,3 +96,34 @@ def test_running_pace_format(session, client):
     data = resp.json()
     pace = data["summary"]["latest_pace_min_per_mile"]
     assert ":" in pace
+
+
+def _seed_vo2max_data(session):
+    """Insert sample VO2 max readings."""
+    for d, val in [
+        ("2023-12-08", 51.0), ("2024-06-15", 43.5),
+        ("2025-01-10", 45.0), ("2026-03-20", 46.2),
+    ]:
+        session.execute(text("""
+            INSERT INTO healthkit.metrics (metric_type, value, unit, recorded_at, source_name)
+            VALUES ('vo2max', :val, 'mL/min/kg', :dt, 'Apple Watch')
+        """), {"val": val, "dt": f"{d}T00:00:00Z"})
+
+
+def test_vo2max_returns_data(session, client):
+    _seed_vo2max_data(session)
+    resp = client.get("/api/fitness/vo2max?start=2023-01-01&end=2026-12-31")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["readings"]) == 4
+    assert data["summary"]["latest"] == 46.2
+    assert data["summary"]["peak"] == 51.0
+    assert data["summary"]["peak_date"] == "2023-12-08"
+
+
+def test_vo2max_empty_range(client):
+    resp = client.get("/api/fitness/vo2max?start=2020-01-01&end=2020-12-31")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["readings"] == []
+    assert data["summary"]["latest"] is None
