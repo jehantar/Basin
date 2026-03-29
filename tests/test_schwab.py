@@ -73,3 +73,58 @@ def test_schwab_token_refresh(session):
 
     row = session.execute(text("SELECT access_token FROM schwab.tokens WHERE id = 1")).fetchone()
     assert row[0] == "new_access"
+
+
+def test_schwab_parse_positions():
+    """Test parsing Schwab API position response."""
+    from collectors.schwab import _parse_positions
+
+    api_response = {
+        "securitiesAccount": {
+            "positions": [
+                {
+                    "longQuantity": 100.0,
+                    "instrument": {"assetType": "EQUITY", "symbol": "AAPL"},
+                    "marketValue": 15025.00,
+                    "averageLongPrice": 150.25,
+                },
+                {
+                    "longQuantity": 50.0,
+                    "instrument": {"assetType": "EQUITY", "symbol": "MSFT"},
+                    "marketValue": 21000.00,
+                    "averageLongPrice": 420.00,
+                },
+            ]
+        }
+    }
+
+    rows = _parse_positions(api_response, account_db_id=1, as_of="2026-03-28")
+    assert len(rows) == 2
+    assert rows[0]["symbol"] == "AAPL"
+    assert rows[0]["quantity"] == 100.0
+    assert rows[0]["market_value"] == 15025.00
+    assert rows[0]["account_id"] == 1
+
+
+def test_schwab_parse_transactions():
+    """Test parsing Schwab API transaction response."""
+    from collectors.schwab import _parse_transactions
+
+    api_response = [
+        {
+            "activityId": 12345,
+            "time": "2026-03-15T10:30:00+0000",
+            "type": "TRADE",
+            "netAmount": -5000.00,
+            "description": "Bought 10 shares AAPL",
+            "transferItems": [
+                {"instrument": {"symbol": "AAPL"}, "amount": 10.0}
+            ],
+        }
+    ]
+
+    rows = _parse_transactions(api_response, account_db_id=1)
+    assert len(rows) == 1
+    assert rows[0]["transaction_id"] == "12345"
+    assert rows[0]["transaction_type"] == "TRADE"
+    assert rows[0]["amount"] == -5000.00
