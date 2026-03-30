@@ -228,8 +228,20 @@
   .cal-week { display: flex; flex-direction: column; gap: 3px; }
   .cal-day {
     width: 14px; height: 14px; border-radius: 3px; background: #0f172a; border: 1px solid #1e293b;
+    position: relative; cursor: default;
   }
   .cal-day.active { background: #22c55e; border-color: #22c55e; }
+  .cal-day .cal-tip {
+    display: none; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: #f1f5f9; color: #0f172a; padding: 6px 10px; border-radius: 6px;
+    font-size: 0.7rem; white-space: nowrap; z-index: 10; pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .cal-day .cal-tip::after {
+    content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: #f1f5f9;
+  }
+  .cal-day:hover .cal-tip { display: block; }
   .calendar-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 0.65rem; color: #475569; }
   .legend-item { display: flex; align-items: center; gap: 4px; }
   .legend-box { width: 10px; height: 10px; border-radius: 2px; }
@@ -1103,13 +1115,16 @@
             cell.className += ' active';
           }
           var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-          var tip = dayNames[cursor.getDay()] + ', ' + MONTHS[cursor.getMonth()] + ' ' + cursor.getDate();
+          var tipText = dayNames[cursor.getDay()] + ', ' + MONTHS[cursor.getMonth()] + ' ' + cursor.getDate();
           if (labels) {
-            tip += '\n' + labels.join(', ');
+            tipText += ' — ' + labels.join(', ');
           } else {
-            tip += '\nRest day';
+            tipText += ' — Rest day';
           }
-          cell.title = tip;
+          var tipEl = document.createElement('span');
+          tipEl.className = 'cal-tip';
+          tipEl.textContent = tipText;
+          cell.appendChild(tipEl);
         }
 
         week.appendChild(cell);
