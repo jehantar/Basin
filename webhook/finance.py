@@ -17,40 +17,49 @@ router = APIRouter()
 # --- Merchant categorization ---
 
 MERCHANT_CATEGORIES = {
-    "trader joe": "groceries",
-    "whole foods": "groceries",
-    "safeway": "groceries",
-    "costco": "groceries",
-    "kroger": "groceries",
-    "doordash": "dining",
-    "uber eats": "dining",
-    "grubhub": "dining",
-    "seamless": "dining",
-    "uber": "transportation",
-    "lyft": "transportation",
-    "amazon": "shopping",
-    "target": "shopping",
-    "walmart": "shopping",
-    "airbnb": "travel",
-    "hotel": "travel",
-    "airline": "travel",
-    "netflix": "subscriptions",
-    "spotify": "subscriptions",
-    "hulu": "subscriptions",
-    "apple.com/bill": "subscriptions",
-    "disney+": "subscriptions",
-    "gym": "health",
-    "fitness": "health",
-    "cvs": "health",
-    "walgreens": "health",
-    "shell": "fuel",
-    "chevron": "fuel",
-    "exxon": "fuel",
-    "bp ": "fuel",
-    "comcast": "utilities",
-    "verizon": "utilities",
-    "at&t": "utilities",
-    "t-mobile": "utilities",
+    # Groceries
+    "trader joe": "groceries", "whole foods": "groceries", "safeway": "groceries",
+    "costco whse": "groceries", "kroger": "groceries", "sprouts": "groceries",
+    "grocery": "groceries", "market basket": "groceries",
+    # Dining & food delivery
+    "doordash": "dining", "uber eats": "dining", "grubhub": "dining", "seamless": "dining",
+    "restaurant": "dining", "restau": "dining", "tst*": "dining", "sq *": "dining",
+    "cafe": "dining", "coffee": "dining", "starbucks": "dining", "chipotle": "dining",
+    "sweetgreen": "dining", "cotogna": "dining", "copra": "dining", "delfina": "dining",
+    "quince": "dining",
+    # Bars & nightlife
+    "bar": "entertainment", "pub": "entertainment", "brewery": "entertainment",
+    "devil's acre": "entertainment", "sullivan": "entertainment",
+    # Transportation
+    "uber": "transportation", "lyft": "transportation", "parking": "transportation",
+    "bart": "transportation", "transit": "transportation",
+    # Shopping & retail
+    "amazon": "shopping", "target": "shopping", "walmart": "shopping",
+    "suitsupply": "shopping", "grant stone": "shopping", "kachins": "shopping",
+    "nordstrom": "shopping", "zara": "shopping", "uniqlo": "shopping",
+    # Travel & accommodation
+    "airbnb": "travel", "hotel": "travel", "airline": "travel", "vrbo": "travel",
+    "algotels": "travel", "homeaway": "travel", "expedia": "travel",
+    "united air": "travel", "delta air": "travel", "southwest": "travel",
+    # Entertainment & events
+    "vivid seats": "entertainment", "axs.com": "entertainment", "ticketmaster": "entertainment",
+    "movie": "entertainment", "cinema": "entertainment",
+    # Fitness & health
+    "equinox": "fitness", "f45": "fitness", "barry": "fitness", "gym": "fitness",
+    "peloton": "fitness", "cvs": "health", "walgreens": "health", "spa": "health",
+    # Subscriptions & digital
+    "netflix": "subscriptions", "spotify": "subscriptions", "hulu": "subscriptions",
+    "apple.com/bill": "subscriptions", "disney": "subscriptions", "claude.ai": "subscriptions",
+    "anthropic": "subscriptions", "openai": "subscriptions", "chatgpt": "subscriptions",
+    "membership fee": "subscriptions",
+    # Fuel
+    "shell": "fuel", "chevron": "fuel", "exxon": "fuel", "bp ": "fuel",
+    # Utilities & telecom
+    "comcast": "utilities", "verizon": "utilities", "at&t": "utilities", "t-mobile": "utilities",
+    # Auto & vehicle
+    "honda": "auto", "auto": "auto", "jiffy lube": "auto", "car wash": "auto",
+    # Paypal (try to categorize by what follows)
+    "paypal *hotel": "travel", "paypal *homeaway": "travel",
 }
 
 # Precompute sorted rules: longer keywords match first (e.g., "uber eats" before "uber")

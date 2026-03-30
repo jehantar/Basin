@@ -751,9 +751,13 @@
     travel: '#06b6d4',
     subscriptions: '#ec4899',
     health: '#14b8a6',
+    fitness: '#2dd4bf',
+    entertainment: '#fb923c',
     fuel: '#f97316',
     utilities: '#6366f1',
+    auto: '#94a3b8',
     service: '#818cf8',
+    insurance: '#c084fc',
     other: '#475569'
   };
 
@@ -1114,20 +1118,27 @@
     var values = cats.map(function(c) { return c.total; });
     var colors = cats.map(function(c) { return getCategoryColor(c.category); });
 
+    // Build hover text with dollar amounts
+    var hoverText = cats.map(function(c) {
+      return '<b>' + capitalize(c.category) + '</b><br>' + fmtMoney(c.total) + '<br>' + c.count + ' transactions';
+    });
+
     Plotly.newPlot(el, [{
       labels: labels,
       values: values,
       type: 'pie',
-      hole: 0.4,
+      hole: 0.45,
       marker: {
         colors: colors,
         line: { color: '#141b2d', width: 2 }
       },
-      textposition: 'outside',
+      textposition: 'inside',
       textinfo: 'label+percent',
-      textfont: { color: '#94a3b8', size: 11, family: 'DM Sans, sans-serif' },
-      hovertemplate: '<b>%{label}</b><br>%{value:$,.2f}<br>%{percent}<extra></extra>',
-      pull: 0.02
+      insidetextorientation: 'horizontal',
+      textfont: { color: '#f1f5f9', size: 11, family: 'DM Sans, sans-serif' },
+      hovertext: hoverText,
+      hoverinfo: 'text',
+      sort: false
     }], {
       paper_bgcolor: '#141b2d',
       plot_bgcolor: '#141b2d',
@@ -1138,8 +1149,15 @@
         x: 0.02,
         xanchor: 'left'
       },
-      margin: { t: 48, b: 20, l: 20, r: 20 },
-      showlegend: false,
+      margin: { t: 48, b: 10, l: 10, r: 10 },
+      showlegend: true,
+      legend: {
+        orientation: 'h',
+        y: -0.1,
+        x: 0.5,
+        xanchor: 'center',
+        font: { color: '#94a3b8', size: 11, family: 'DM Sans, sans-serif' }
+      },
       hoverlabel: {
         bgcolor: '#1e293b',
         bordercolor: '#2a3650',
