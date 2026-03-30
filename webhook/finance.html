@@ -1,4 +1,818 @@
 <!DOCTYPE html>
-<html><head><title>Basin — Finance</title></head>
-<body><h1>Basin Finance Dashboard</h1><p>Loading...</p></body>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Basin — Finance</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  a { color: #3b82f6; }
+
+  /* Top navigation */
+  .top-nav {
+    display: flex; gap: 0; margin-bottom: 20px;
+    border-bottom: 2px solid #334155;
+  }
+  .nav-tab {
+    padding: 10px 24px; font-size: 0.9rem; font-weight: 600;
+    color: #64748b; text-decoration: none;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s; margin-bottom: -2px;
+  }
+  .nav-tab:hover { color: #94a3b8; }
+  .nav-tab.active { color: #f1f5f9; border-bottom-color: #3b82f6; }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+  .header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #f1f5f9;
+  }
+  .header .sync-info {
+    font-size: 0.85rem;
+    color: #64748b;
+  }
+
+  /* Cards grid */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 20px;
+    border: 2px solid transparent;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: #334155; }
+
+  .card-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+    color: #64748b;
+  }
+  .card-label.spend { color: #22c55e; }
+  .card-label.category { color: #f59e0b; }
+  .card-label.transactions { color: #3b82f6; }
+
+  .card-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    line-height: 1.1;
+  }
+  .card-sub {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-top: 4px;
+  }
+
+  /* View tabs */
+  .view-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .view-tab {
+    background: #334155;
+    color: #94a3b8;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    outline: none;
+  }
+  .view-tab:hover { background: #475569; color: #e2e8f0; }
+  .view-tab:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+  .view-tab.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+
+  /* Detail panel */
+  .detail-panel {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 24px;
+    min-height: 400px;
+  }
+
+  /* Filters */
+  .filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .preset-btn {
+    background: #334155;
+    color: #94a3b8;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    outline: none;
+  }
+  .preset-btn:hover { background: #475569; color: #e2e8f0; }
+  .preset-btn:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+  .preset-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+
+  .date-input {
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    outline: none;
+  }
+  .date-input:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+  .filters-sep { color: #475569; margin: 0 4px; }
+
+  /* Charts grid */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .chart-area { width: 100%; min-height: 320px; }
+
+  /* Merchants table */
+  .merchants-table-wrapper {
+    max-height: 600px;
+    overflow-y: auto;
+    border-radius: 8px;
+    border: 1px solid #334155;
+  }
+  .merchants-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  .merchants-table thead { position: sticky; top: 0; z-index: 1; }
+  .merchants-table th {
+    text-align: left;
+    color: #64748b;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-bottom: 1px solid #334155;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    background: #1e293b;
+  }
+  .merchants-table td {
+    padding: 8px 12px;
+    color: #cbd5e1;
+    border-bottom: 1px solid #0f172a;
+  }
+  .merchants-table tr:hover td { background: #0f172a; }
+  .spend-value { color: #22c55e; font-weight: 600; }
+
+  /* Cards panel grid */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .card-block {
+    background: #0f172a;
+    border-radius: 12px;
+    padding: 24px;
+    border: 2px solid #334155;
+  }
+  .card-block .cb-name {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .card-block .cb-last4 {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 16px;
+  }
+  .card-block .cb-spend {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 8px;
+  }
+  .card-block .cb-txns {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-bottom: 4px;
+  }
+  .card-block .cb-top-cat {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+
+  .card-block.accent-blue   { border-color: #3b82f6; }
+  .card-block.accent-blue   .cb-name { color: #3b82f6; }
+  .card-block.accent-blue   .cb-spend { color: #22c55e; }
+
+  .card-block.accent-purple { border-color: #a78bfa; }
+  .card-block.accent-purple .cb-name { color: #a78bfa; }
+  .card-block.accent-purple .cb-spend { color: #22c55e; }
+
+  .card-block.accent-amber  { border-color: #f59e0b; }
+  .card-block.accent-amber  .cb-name { color: #f59e0b; }
+  .card-block.accent-amber  .cb-spend { color: #22c55e; }
+
+  .card-block.accent-green  { border-color: #22c55e; }
+  .card-block.accent-green  .cb-name { color: #22c55e; }
+  .card-block.accent-green  .cb-spend { color: #22c55e; }
+
+  /* Panels */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Error banner */
+  .error-banner {
+    background: #451a2a;
+    border: 1px solid #991b1b;
+    border-radius: 8px;
+    padding: 12px 20px;
+    margin-bottom: 20px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+  }
+  .error-banner.visible { display: flex; }
+  .error-banner .error-msg { flex: 1; color: #fca5a5; font-size: 0.9rem; }
+  .error-banner button {
+    background: #991b1b;
+    color: #fca5a5;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .error-banner button:hover { background: #b91c1c; }
+
+  /* Empty state */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #64748b;
+    text-align: center;
+  }
+  .empty-state p { margin-bottom: 16px; font-size: 1rem; }
+  .empty-state button {
+    background: #334155;
+    color: #e2e8f0;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 8px 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .empty-state button:hover { background: #475569; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .cards { grid-template-columns: 1fr; }
+    .charts-grid { grid-template-columns: 1fr; }
+    .cards-grid { grid-template-columns: 1fr; }
+    .filters { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="top-nav">
+  <a href="/dashboard/fitness" class="nav-tab">Fitness</a>
+  <a href="/dashboard/finance" class="nav-tab active">Finance</a>
+</nav>
+
+<div class="header">
+  <h1>Basin &mdash; Finance</h1>
+  <span class="sync-info" id="syncInfo">Last sync: &mdash;</span>
+</div>
+
+<div class="error-banner" id="errorBanner">
+  <span class="error-msg" id="errorMsg"></span>
+  <button id="retryBtn" tabindex="0">Retry</button>
+</div>
+
+<div class="cards">
+  <div class="card">
+    <div class="card-label spend">Total Spend</div>
+    <div class="card-value" id="totalSpendValue">Loading...</div>
+    <div class="card-sub" id="totalSpendSub">&nbsp;</div>
+  </div>
+  <div class="card">
+    <div class="card-label category">Top Category</div>
+    <div class="card-value" id="topCategoryValue">Loading...</div>
+    <div class="card-sub" id="topCategorySub">&nbsp;</div>
+  </div>
+  <div class="card">
+    <div class="card-label transactions">Transactions</div>
+    <div class="card-value" id="transactionsValue">Loading...</div>
+    <div class="card-sub" id="transactionsSub">&nbsp;</div>
+  </div>
+</div>
+
+<div class="view-tabs">
+  <button class="view-tab active" data-view="spending" tabindex="0">Spending</button>
+  <button class="view-tab" data-view="merchants" tabindex="0">Merchants</button>
+  <button class="view-tab" data-view="cards" tabindex="0">Cards</button>
+</div>
+
+<div class="detail-panel">
+  <div class="filters">
+    <button class="preset-btn" data-months="3" tabindex="0">3M</button>
+    <button class="preset-btn" data-months="6" tabindex="0">6M</button>
+    <button class="preset-btn" data-months="12" tabindex="0">1Y</button>
+    <button class="preset-btn" data-months="0" tabindex="0">All</button>
+    <span class="filters-sep">|</span>
+    <input type="date" class="date-input" id="startDate" tabindex="0" aria-label="Start date">
+    <span class="filters-sep">&ndash;</span>
+    <input type="date" class="date-input" id="endDate" tabindex="0" aria-label="End date">
+  </div>
+
+  <div class="panel active" id="panelSpending">
+    <div class="charts-grid">
+      <div class="chart-area" id="chartMonthly"></div>
+      <div class="chart-area" id="chartCategory"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panelMerchants">
+    <div class="merchants-table-wrapper">
+      <table class="merchants-table" id="merchantsTable">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Merchant</th>
+            <th>Total Spend</th>
+            <th># Transactions</th>
+            <th>Avg Transaction</th>
+          </tr>
+        </thead>
+        <tbody id="merchantsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" id="panelCards">
+    <div class="cards-grid" id="cardsGrid"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // -- Category colors --
+  var CATEGORY_COLORS = {
+    groceries: '#22c55e',
+    dining: '#f59e0b',
+    transportation: '#3b82f6',
+    shopping: '#a78bfa',
+    travel: '#06b6d4',
+    subscriptions: '#ec4899',
+    health: '#14b8a6',
+    fuel: '#f97316',
+    utilities: '#6366f1',
+    other: '#64748b'
+  };
+
+  var CARD_ACCENTS = ['accent-blue', 'accent-purple', 'accent-amber', 'accent-green'];
+
+  // -- State --
+  var activeView = 'spending';
+  var overviewData = null;
+  var merchantsData = null;
+  var cardsData = null;
+  var activePreset = null;
+
+  // -- DOM refs --
+  function $(id) { return document.getElementById(id); }
+  var startInput  = $('startDate');
+  var endInput    = $('endDate');
+  var errorBanner = $('errorBanner');
+  var errorMsg    = $('errorMsg');
+  var retryBtn    = $('retryBtn');
+  var syncInfo    = $('syncInfo');
+
+  // -- Helpers --
+  function clearChildren(el) {
+    while (el.firstChild) { el.removeChild(el.firstChild); }
+  }
+
+  function fmtMoney(n) {
+    if (n == null) return '$0.00';
+    return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function fmtMoneyShort(n) {
+    if (n == null) return '$0';
+    return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+
+  function fmtNumber(n) {
+    if (n == null) return '0';
+    return Number(n).toLocaleString('en-US');
+  }
+
+  function capitalize(s) {
+    if (!s) return '';
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  function isoToday() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function isoMonthsAgo(m) {
+    var d = new Date();
+    d.setMonth(d.getMonth() - m);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function getCategoryColor(cat) {
+    var key = (cat || 'other').toLowerCase();
+    return CATEGORY_COLORS[key] || CATEGORY_COLORS.other;
+  }
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorBanner.classList.add('visible');
+  }
+
+  function hideError() {
+    errorBanner.classList.remove('visible');
+  }
+
+  // -- Plotly layout base --
+  function baseLayout(title, extra) {
+    var layout = {
+      paper_bgcolor: '#1e293b',
+      plot_bgcolor: '#1e293b',
+      font: { color: '#94a3b8', family: 'system-ui, -apple-system, sans-serif' },
+      title: { text: title, font: { size: 16, color: '#e2e8f0' } },
+      xaxis: {
+        gridcolor: '#334155',
+        linecolor: '#334155',
+        tickfont: { color: '#94a3b8' }
+      },
+      yaxis: {
+        gridcolor: '#334155',
+        linecolor: '#334155',
+        tickfont: { color: '#94a3b8' }
+      },
+      margin: { t: 50, b: 50, l: 70, r: 20 },
+      hovermode: 'closest'
+    };
+    if (extra) {
+      for (var k in extra) {
+        if (extra.hasOwnProperty(k)) { layout[k] = extra[k]; }
+      }
+    }
+    return layout;
+  }
+
+  // -- View switching --
+  var viewTabs = document.querySelectorAll('.view-tab');
+  viewTabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      var view = tab.getAttribute('data-view');
+      if (view === activeView) return;
+      activeView = view;
+      viewTabs.forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
+      var panelId = 'panel' + view.charAt(0).toUpperCase() + view.slice(1);
+      var panel = $(panelId);
+      if (panel) panel.classList.add('active');
+      renderActivePanel();
+    });
+  });
+
+  // -- Time filters --
+  var presetBtns = document.querySelectorAll('.preset-btn');
+
+  function setPreset(months) {
+    activePreset = months;
+    presetBtns.forEach(function(b) {
+      var m = parseInt(b.getAttribute('data-months'), 10);
+      b.classList.toggle('active', m === months);
+    });
+    if (months === 0) {
+      startInput.value = '';
+      endInput.value = isoToday();
+    } else {
+      startInput.value = isoMonthsAgo(months);
+      endInput.value = isoToday();
+    }
+    loadAll();
+  }
+
+  presetBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      setPreset(parseInt(btn.getAttribute('data-months'), 10));
+    });
+  });
+
+  startInput.addEventListener('change', function() { activePreset = null; updatePresetHighlight(); loadAll(); });
+  endInput.addEventListener('change', function() { activePreset = null; updatePresetHighlight(); loadAll(); });
+
+  function updatePresetHighlight() {
+    presetBtns.forEach(function(b) { b.classList.remove('active'); });
+  }
+
+  function getDateParams() {
+    var params = '';
+    if (startInput.value) params += 'start=' + startInput.value;
+    if (endInput.value) params += (params ? '&' : '') + 'end=' + endInput.value;
+    return params ? '?' + params : '';
+  }
+
+  // -- Data loading --
+  function loadAll() {
+    hideError();
+    $('totalSpendValue').textContent = 'Loading...';
+    $('topCategoryValue').textContent = 'Loading...';
+    $('transactionsValue').textContent = 'Loading...';
+    $('totalSpendSub').textContent = '\u00a0';
+    $('topCategorySub').textContent = '\u00a0';
+    $('transactionsSub').textContent = '\u00a0';
+
+    var params = getDateParams();
+
+    Promise.all([
+      fetch('/api/finance/overview' + params).then(function(r) {
+        if (!r.ok) throw new Error('Overview: ' + r.status);
+        return r.json();
+      }),
+      fetch('/api/finance/merchants' + params).then(function(r) {
+        if (!r.ok) throw new Error('Merchants: ' + r.status);
+        return r.json();
+      }),
+      fetch('/api/finance/cards' + params).then(function(r) {
+        if (!r.ok) throw new Error('Cards: ' + r.status);
+        return r.json();
+      })
+    ]).then(function(results) {
+      overviewData = results[0];
+      merchantsData = results[1];
+      cardsData = results[2];
+
+      updateSyncInfo(overviewData.generated_at);
+      updateSummaryCards(overviewData.summary);
+      renderActivePanel();
+    }).catch(function(err) {
+      showError('Failed to load finance data: ' + err.message);
+    });
+  }
+
+  function updateSyncInfo(ts) {
+    if (!ts) return;
+    var d = new Date(ts);
+    syncInfo.textContent = 'Last sync: ' + d.toLocaleString('en-US', {
+      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+    });
+  }
+
+  function updateSummaryCards(summary) {
+    if (!summary) return;
+
+    $('totalSpendValue').textContent = fmtMoney(summary.total_spend);
+    $('totalSpendSub').textContent = 'avg ' + fmtMoneyShort(summary.avg_monthly) + '/mo';
+
+    $('topCategoryValue').textContent = capitalize(summary.biggest_category || '---');
+    $('topCategorySub').textContent = fmtMoney(summary.biggest_category_amount);
+
+    $('transactionsValue').textContent = fmtNumber(summary.transaction_count);
+    var uncatText = summary.uncategorized_count
+      ? summary.uncategorized_count + ' uncategorized'
+      : 'all categorized';
+    $('transactionsSub').textContent = uncatText;
+  }
+
+  // -- Panel rendering --
+  function renderActivePanel() {
+    if (activeView === 'spending') renderSpending();
+    else if (activeView === 'merchants') renderMerchants();
+    else if (activeView === 'cards') renderCards();
+  }
+
+  // -- Spending panel --
+  function renderSpending() {
+    if (!overviewData) return;
+    renderMonthlyChart();
+    renderCategoryDonut();
+  }
+
+  function renderMonthlyChart() {
+    var el = $('chartMonthly');
+    var monthly = overviewData.monthly_spend || [];
+    if (monthly.length === 0) {
+      clearChildren(el);
+      var emptyDiv = document.createElement('div');
+      emptyDiv.className = 'empty-state';
+      var p = document.createElement('p');
+      p.textContent = 'No spending data in selected range';
+      emptyDiv.appendChild(p);
+      el.appendChild(emptyDiv);
+      return;
+    }
+
+    var months = monthly.map(function(m) { return m.month; });
+    var totals = monthly.map(function(m) { return m.total; });
+
+    Plotly.newPlot(el, [{
+      x: months,
+      y: totals,
+      type: 'bar',
+      marker: { color: '#3b82f6', opacity: 0.9 },
+      hovertemplate: '%{x}<br>%{y:$,.2f}<extra></extra>'
+    }], baseLayout('Monthly Spend', {
+      xaxis: {
+        gridcolor: '#334155',
+        linecolor: '#334155',
+        tickfont: { color: '#94a3b8' }
+      },
+      yaxis: {
+        gridcolor: '#334155',
+        linecolor: '#334155',
+        tickfont: { color: '#94a3b8' },
+        tickprefix: '$',
+        tickformat: ',.0f'
+      }
+    }), { responsive: true, displayModeBar: false });
+  }
+
+  function renderCategoryDonut() {
+    var el = $('chartCategory');
+    var cats = overviewData.category_breakdown || [];
+    if (cats.length === 0) {
+      clearChildren(el);
+      var emptyDiv = document.createElement('div');
+      emptyDiv.className = 'empty-state';
+      var p = document.createElement('p');
+      p.textContent = 'No category data';
+      emptyDiv.appendChild(p);
+      el.appendChild(emptyDiv);
+      return;
+    }
+
+    var labels = cats.map(function(c) { return capitalize(c.category); });
+    var values = cats.map(function(c) { return c.total; });
+    var colors = cats.map(function(c) { return getCategoryColor(c.category); });
+
+    Plotly.newPlot(el, [{
+      labels: labels,
+      values: values,
+      type: 'pie',
+      hole: 0.4,
+      marker: { colors: colors },
+      textposition: 'outside',
+      textinfo: 'label+percent',
+      textfont: { color: '#94a3b8', size: 11 },
+      hovertemplate: '%{label}<br>%{value:$,.2f}<br>%{percent}<extra></extra>'
+    }], {
+      paper_bgcolor: '#1e293b',
+      plot_bgcolor: '#1e293b',
+      font: { color: '#94a3b8', family: 'system-ui, -apple-system, sans-serif' },
+      title: { text: 'Category Breakdown', font: { size: 16, color: '#e2e8f0' } },
+      margin: { t: 50, b: 20, l: 20, r: 20 },
+      showlegend: false
+    }, { responsive: true, displayModeBar: false });
+  }
+
+  // -- Merchants panel --
+  function renderMerchants() {
+    var body = $('merchantsBody');
+    clearChildren(body);
+
+    if (!merchantsData || !merchantsData.merchants || merchantsData.merchants.length === 0) {
+      var tr = document.createElement('tr');
+      var td = document.createElement('td');
+      td.setAttribute('colspan', '5');
+      td.style.textAlign = 'center';
+      td.style.padding = '40px 12px';
+      td.style.color = '#64748b';
+      td.textContent = 'No merchant data in selected range';
+      tr.appendChild(td);
+      body.appendChild(tr);
+      return;
+    }
+
+    var merchants = merchantsData.merchants.slice(0, 25);
+    merchants.forEach(function(m, i) {
+      var tr = document.createElement('tr');
+
+      var tdRank = document.createElement('td');
+      tdRank.textContent = String(i + 1);
+      tr.appendChild(tdRank);
+
+      var tdName = document.createElement('td');
+      tdName.textContent = m.name || '---';
+      tr.appendChild(tdName);
+
+      var tdSpend = document.createElement('td');
+      tdSpend.className = 'spend-value';
+      tdSpend.textContent = fmtMoney(m.total_spend);
+      tr.appendChild(tdSpend);
+
+      var tdCount = document.createElement('td');
+      tdCount.textContent = fmtNumber(m.transaction_count);
+      tr.appendChild(tdCount);
+
+      var tdAvg = document.createElement('td');
+      tdAvg.textContent = fmtMoney(m.avg_transaction);
+      tr.appendChild(tdAvg);
+
+      body.appendChild(tr);
+    });
+  }
+
+  // -- Cards panel --
+  function renderCards() {
+    var grid = $('cardsGrid');
+    clearChildren(grid);
+
+    if (!cardsData || !cardsData.cards || cardsData.cards.length === 0) {
+      var emptyDiv = document.createElement('div');
+      emptyDiv.className = 'empty-state';
+      var p = document.createElement('p');
+      p.textContent = 'No card data in selected range';
+      emptyDiv.appendChild(p);
+      grid.appendChild(emptyDiv);
+      return;
+    }
+
+    cardsData.cards.forEach(function(card, i) {
+      var block = document.createElement('div');
+      block.className = 'card-block ' + CARD_ACCENTS[i % CARD_ACCENTS.length];
+
+      var name = document.createElement('div');
+      name.className = 'cb-name';
+      name.textContent = card.name || 'Card';
+      block.appendChild(name);
+
+      var last4 = document.createElement('div');
+      last4.className = 'cb-last4';
+      last4.textContent = card.last_four ? 'ending in ' + card.last_four : '';
+      block.appendChild(last4);
+
+      var spend = document.createElement('div');
+      spend.className = 'cb-spend';
+      spend.textContent = fmtMoney(card.total_spend);
+      block.appendChild(spend);
+
+      var txns = document.createElement('div');
+      txns.className = 'cb-txns';
+      txns.textContent = fmtNumber(card.transaction_count) + ' transactions';
+      block.appendChild(txns);
+
+      var topCat = document.createElement('div');
+      topCat.className = 'cb-top-cat';
+      var catLabel = card.top_category ? capitalize(card.top_category) : '---';
+      var catAmt = card.top_category_amount ? ' (' + fmtMoney(card.top_category_amount) + ')' : '';
+      topCat.textContent = 'Top: ' + catLabel + catAmt;
+      block.appendChild(topCat);
+
+      grid.appendChild(block);
+    });
+  }
+
+  // -- Retry --
+  retryBtn.addEventListener('click', function() {
+    loadAll();
+  });
+
+  // -- Init --
+  setPreset(6);
+
+})();
+</script>
+</body>
 </html>
