@@ -114,7 +114,8 @@ def get_running_data(start: str | None = None, end: str | None = None):
                    (w.start_time AT TIME ZONE 'UTC')::date as date,
                    round((w.duration_sec / 60.0)::numeric, 1) as duration_min,
                    round(avg(speed.value)::numeric, 2) as avg_speed,
-                   round(avg(power.value)::numeric, 0) as avg_power
+                   round(avg(power.value)::numeric, 0) as avg_power,
+                   round(sum(DISTINCT steps.value)::numeric, 0) as total_steps
             FROM healthkit.workouts w
             LEFT JOIN healthkit.metrics speed
               ON speed.metric_type = 'running_speed'
@@ -122,6 +123,9 @@ def get_running_data(start: str | None = None, end: str | None = None):
             LEFT JOIN healthkit.metrics power
               ON power.metric_type = 'running_power'
               AND power.recorded_at BETWEEN w.start_time AND w.end_time
+            LEFT JOIN healthkit.metrics steps
+              ON steps.metric_type = 'step_count'
+              AND steps.recorded_at BETWEEN w.start_time AND w.end_time
             WHERE w.workout_type = 'Running'
               AND (w.start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
             GROUP BY w.id, w.start_time, w.duration_sec
@@ -135,6 +139,9 @@ def get_running_data(start: str | None = None, end: str | None = None):
             speed = float(row[3]) if row[3] else None
             avg_power = float(row[4]) if row[4] else None
             distance_mi = round(speed * (duration_min / 60.0), 2) if speed and duration_min else None
+            # Cadence: steps per minute (derived from total steps / duration)
+            total_steps = float(row[5]) if row[5] else None
+            cadence = round(total_steps / duration_min) if total_steps and duration_min and duration_min > 0 else None
 
             runs.append({
                 "date": d,
@@ -142,6 +149,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
                 "duration_min": duration_min,
                 "distance_mi": distance_mi,
                 "avg_power": avg_power,
+                "cadence_spm": cadence,
             })
 
         total_runs = len(runs)

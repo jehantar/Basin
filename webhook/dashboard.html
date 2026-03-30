@@ -355,6 +355,7 @@
             <th>Pace</th>
             <th>Speed</th>
             <th>Duration</th>
+            <th>Cadence</th>
             <th>Avg Power</th>
           </tr>
         </thead>
@@ -665,6 +666,10 @@
       var tdDur = document.createElement('td');
       tdDur.textContent = r.duration_min != null ? r.duration_min.toFixed(1) + ' min' : '---';
       tr.appendChild(tdDur);
+
+      var tdCadence = document.createElement('td');
+      tdCadence.textContent = r.cadence_spm != null ? r.cadence_spm + ' spm' : '---';
+      tr.appendChild(tdCadence);
 
       var tdPower = document.createElement('td');
       tdPower.textContent = r.avg_power != null ? r.avg_power + ' W' : '---';
