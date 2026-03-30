@@ -232,14 +232,22 @@
   }
   .cal-day.active { background: #22c55e; border-color: #22c55e; }
   .cal-day .cal-tip {
-    display: none; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: none; position: absolute; left: 50%; transform: translateX(-50%);
     background: #f1f5f9; color: #0f172a; padding: 6px 10px; border-radius: 6px;
     font-size: 0.7rem; white-space: nowrap; z-index: 10; pointer-events: none;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    bottom: 20px;
   }
   .cal-day .cal-tip::after {
-    content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-    border: 5px solid transparent; border-top-color: #f1f5f9;
+    content: ''; position: absolute; left: 50%; transform: translateX(-50%);
+    border: 5px solid transparent;
+    top: 100%; border-top-color: #f1f5f9;
+  }
+  .cal-day .cal-tip.below {
+    bottom: auto; top: 20px;
+  }
+  .cal-day .cal-tip.below::after {
+    top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: #f1f5f9;
   }
   .cal-day:hover .cal-tip { display: block; }
   .calendar-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 0.65rem; color: #475569; }
@@ -1122,7 +1130,7 @@
             tipText += ' — Rest day';
           }
           var tipEl = document.createElement('span');
-          tipEl.className = 'cal-tip';
+          tipEl.className = 'cal-tip' + (d < 3 ? ' below' : '');
           tipEl.textContent = tipText;
           cell.appendChild(tipEl);
         }
