@@ -1,134 +1,276 @@
-# Finance Dashboard — Implementation Plan
+# Finance Dashboard — Implementation Plan (Tuned)
 
-## Context
+## Why this plan update
 
-Basin has a fitness dashboard at `/dashboard` with running, VO2 max, and strength panels. The user wants to add a Finance page alongside it, with top-level navigation (Fitness | Finance tabs). The finance page will visualize spending data from 4 Chase credit cards (998 transactions) collected via Teller.
+This revision tightens scope, makes API behavior explicit, and reduces rework risk. It keeps your original direction (simple server-rendered pages + API endpoints) while adding:
 
-Key challenge: Teller's transaction categories are sparse — 420 txns tagged "general" and 146 uncategorized. Solution: server-side auto-categorization using merchant name keyword matching.
+- clearer definitions for *what counts as spend*,
+- deterministic categorization behavior,
+- acceptance criteria per phase,
+- test coverage that targets likely bugs (sign handling, date edges, unknown merchants).
 
-## Approach
+---
 
-- **Two separate HTML files** with a shared top nav bar (not SPA)
-- **New Python module** `webhook/finance.py` for finance APIs
-- **Extract shared utilities** (`_parse_date_range`, `_response_metadata`) to avoid duplication
-- **Auto-categorize** via keyword-to-category mapping applied at query time (no DB changes)
-- **Three finance views:** Monthly Spend + Categories, Top Merchants, Per-Card Breakdown
+## Product goal
 
-## Files to Create/Modify
+Ship a Finance dashboard next to Fitness that answers:
 
-| File | Action | Purpose |
-|------|--------|---------|
-| `webhook/dashboard_shared.py` | Create | Extract `_parse_date_range`, `_response_metadata` |
-| `webhook/finance.py` | Create | Finance API router + categorization logic |
-| `webhook/finance.html` | Create | Finance dashboard page |
-| `webhook/dashboard.py` | Modify | Import from shared, rename route to `/dashboard/fitness` |
-| `webhook/dashboard.html` | Modify | Add top nav bar (Fitness/Finance tabs) |
-| `webhook/server.py` | Modify | Mount finance router, add `/dashboard` redirect |
-| `tests/conftest.py` | Modify | Patch `webhook.finance.get_session` |
-| `tests/test_dashboard.py` | Modify | Update `/dashboard` → `/dashboard/fitness` in tests |
-| `tests/test_finance.py` | Create | Finance API tests |
+1. **How much am I spending over time?**
+2. **Where is money going (categories + merchants)?**
+3. **How is spend distributed across cards?**
 
-## Tasks
+Primary audience: single user, personal use, read-only analytics over Teller credit card transactions.
 
-### Task 1: Extract shared utilities
-- Create `webhook/dashboard_shared.py` with `_parse_date_range`, `_response_metadata`, `MAX_DATE_SPAN_DAYS`
-- Update `webhook/dashboard.py` to import from it
-- Verify existing fitness tests still pass
+---
 
-### Task 2: Routing + navigation
-- `webhook/dashboard.py`: change route from `/dashboard` to `/dashboard/fitness`
-- `webhook/server.py`: add `/dashboard` → `/dashboard/fitness` redirect, mount finance router
-- `webhook/dashboard.html`: add top nav with Fitness (active) / Finance tabs
-- Update test for new URL
+## Scope and non-goals
 
-### Task 3: Finance API endpoints (`webhook/finance.py`)
-- `MERCHANT_CATEGORIES` keyword dict + `categorize_transaction()` function
-- `GET /dashboard/finance` — serve finance.html
-- `GET /api/finance/overview` — monthly spend trend + category breakdown + summary
-- `GET /api/finance/merchants` — top 25 merchants by spend
-- `GET /api/finance/cards` — per-card spending breakdown
-- Shared `_fetch_transactions()` to avoid SQL duplication across endpoints
+### In scope (MVP)
 
-### Task 4: Finance HTML (`webhook/finance.html`)
-- Top nav (Finance active)
-- 3 summary cards: Total Spend, Biggest Category, Transaction Count
-- View tabs: Spending | Merchants | Cards
-- Time filters (3M/6M/1Y/All + date pickers)
-- Spending panel: monthly bar chart + category donut (side-by-side)
-- Merchants panel: ranked table of top 25 merchants
-- Cards panel: 2x2 grid of card blocks with spend/count/top category
-- Same dark theme, Plotly.js, textContent/createElement patterns
+- New page at `/dashboard/finance`.
+- Navigation between Fitness and Finance.
+- Server-side categorization fallback for sparse Teller categories.
+- 3 analytics views: monthly/category overview, top merchants, per-card breakdown.
+- Date filters (presets + manual range).
 
-### Task 5: Tests
-- Update `tests/conftest.py` to patch `webhook.finance.get_session`
-- Update `tests/test_dashboard.py` for new URL
-- Create `tests/test_finance.py` with categorization tests, API response shape tests, empty range tests
+### Out of scope (defer)
 
-### Task 6: Deploy and verify
+- Budgeting, goals, alerts, recurring bill detection.
+- Editing/relabeling categories in UI.
+- Persisting custom categorization overrides in DB.
+- Net-worth / asset aggregation (Schwab, cash, etc.).
 
-## Categorization Mapping
+---
 
-```python
-MERCHANT_CATEGORIES = {
-    "trader joe": "groceries", "whole foods": "groceries", "safeway": "groceries", "costco": "groceries",
-    "doordash": "dining", "uber eats": "dining", "grubhub": "dining",
-    "uber": "transportation", "lyft": "transportation",
-    "amazon": "shopping", "target": "shopping", "walmart": "shopping",
-    "airbnb": "travel", "hotel": "travel",
-    "netflix": "subscriptions", "spotify": "subscriptions", "hulu": "subscriptions", "apple.com/bill": "subscriptions",
-    "gym": "health", "fitness": "health",
-    "shell": "fuel", "chevron": "fuel",
-    "comcast": "utilities", "verizon": "utilities", "at&t": "utilities",
-}
-```
+## Current system constraints (from codebase/schema)
 
-Match order: longer keywords first (so "uber eats" matches before "uber"). Fallback: Teller category if not "general"/null, else "other".
+- Existing dashboard route is currently `/dashboard` and fitness APIs live under `/api/fitness/*`.
+- Teller data exists in `teller.transactions` with fields including: `amount`, `description`, `category`, `date`, `status`, and FK `account_id`.
+- Card metadata exists in `teller.accounts` (`name`, `last_four`, `subtype`, etc.).
 
-## API Response Shapes
+Implication: we can build finance analytics with SQL + lightweight Python transforms and no migration.
 
-### GET /api/finance/overview
-```json
-{
-  "range_start": "...", "range_end": "...", "timezone": "UTC", "generated_at": "...",
-  "monthly_spend": [{"month": "2026-03", "total": 3903.23}],
-  "category_breakdown": [{"category": "groceries", "total": 567.89, "count": 23}],
-  "summary": {"total_spend": 45000, "avg_monthly": 3750, "biggest_category": "groceries", "biggest_category_amount": 11000}
-}
-```
+---
 
-### GET /api/finance/merchants
-```json
-{
-  "..metadata..",
-  "merchants": [{"name": "DOORDASH", "total_spend": 2340.50, "transaction_count": 45, "avg_transaction": 52.01}]
-}
-```
+## Critical data definitions (lock these early)
 
-### GET /api/finance/cards
-```json
-{
-  "..metadata..",
-  "cards": [{"name": "Freedom Unlimited", "last_four": "2712", "total_spend": 59991.18, "transaction_count": 860, "top_category": "general", "top_category_amount": 43108.93}]
-}
-```
+These decisions prevent 80% of dashboard inconsistencies:
 
-## Task Sequencing
+1. **Spend sign rule**
+   - Treat spend as `abs(amount)` only when transaction represents money outflow on card.
+   - Exclude or separately classify positive/refund-like rows (e.g., credits, reversals) for MVP simplicity.
+   - Add a follow-up metric later for “refunds”.
 
-```
-Task 1 (shared utils)
-  ├→ Task 2 (routing + nav)  ─┐
-  └→ Task 3 (finance API)    ─┼→ Task 4 (finance HTML) → Task 6 (deploy)
-                               └→ Task 5 (tests)
-```
+2. **Status filter**
+   - Include only posted/settled transactions.
+   - Exclude pending to avoid chart “jumping” day-to-day.
 
-Tasks 2+3 can run in parallel after Task 1. Tasks 4+5 can run in parallel after 2+3.
+3. **Date semantics**
+   - Use `teller.transactions.date` as canonical transaction date (not created_at).
 
-## Verification
+4. **Category precedence**
+   1) keyword override (merchant-based),
+   2) Teller category when present and not generic,
+   3) `"other"`.
 
-1. `pytest tests/test_dashboard.py tests/test_finance.py -v` — all pass
-2. `/dashboard` redirects to `/dashboard/fitness`
-3. `/dashboard/fitness` shows fitness page with nav bar, existing functionality unchanged
-4. `/dashboard/finance` shows finance page with spending chart, category donut, merchants table, card breakdown
-5. Nav tabs switch between pages
-6. Time filters work on finance page
-7. Auto-categorization properly maps merchants
+5. **Merchant normalization**
+   - Normalize source text via lowercase + strip punctuation + collapse spaces before matching.
+
+---
+
+## Proposed architecture
+
+- Keep **two HTML pages** (Fitness and Finance), shared nav; no SPA conversion.
+- Create `webhook/finance.py` for finance router and API endpoints.
+- Extract reusable helpers into `webhook/dashboard_shared.py`:
+  - `MAX_DATE_SPAN_DAYS`
+  - `_parse_date_range`
+  - `_response_metadata`
+- Mount both routers in `webhook/server.py`.
+
+This is consistent with current project structure and minimizes blast radius.
+
+---
+
+## Endpoint contract (tightened)
+
+### `GET /dashboard/finance`
+Returns finance dashboard HTML.
+
+### `GET /api/finance/overview?start=YYYY-MM-DD&end=YYYY-MM-DD`
+Returns:
+
+- `monthly_spend`: month bucket + total
+- `category_breakdown`: category totals + counts
+- `summary`: total_spend, avg_monthly, biggest_category, biggest_category_amount, transaction_count
+- standard metadata fields
+
+### `GET /api/finance/merchants?...`
+Returns top merchants by spend in date range:
+
+- `name`, `total_spend`, `transaction_count`, `avg_transaction`
+
+### `GET /api/finance/cards?...`
+Returns per-card rollup:
+
+- `name`, `last_four`, `total_spend`, `transaction_count`, `top_category`, `top_category_amount`
+
+### Error model
+Reuse existing dashboard error format for invalid dates/ranges to keep API behavior consistent.
+
+---
+
+## Categorization strategy (improved)
+
+Use your keyword map, but make matching deterministic and testable:
+
+1. Precompute ordered rules by descending keyword length.
+2. Normalize merchant/description string once.
+3. First matching keyword wins.
+4. If none match, use Teller category unless `NULL`, empty, `"general"`, `"uncategorized"`.
+5. Else `"other"`.
+
+### Suggested starter taxonomy
+
+- groceries
+- dining
+- transportation
+- shopping
+- travel
+- subscriptions
+- health
+- fuel
+- utilities
+- other
+
+Keep category strings stable (used by charts + tests).
+
+---
+
+## Files to create/modify
+
+| File | Action | Notes |
+|---|---|---|
+| `webhook/dashboard_shared.py` | Create | shared date parsing + metadata helpers |
+| `webhook/finance.py` | Create | finance routes, SQL aggregations, categorization |
+| `webhook/finance.html` | Create | finance dashboard UI |
+| `webhook/dashboard.py` | Modify | move helper imports; route becomes `/dashboard/fitness` |
+| `webhook/dashboard.html` | Modify | add Fitness/Finance top nav |
+| `webhook/server.py` | Modify | include finance router + `/dashboard` redirect |
+| `tests/conftest.py` | Modify | monkeypatch `webhook.finance.get_session` |
+| `tests/test_dashboard.py` | Modify | route assertions for `/dashboard/fitness` and redirect |
+| `tests/test_finance.py` | Create | categorization + endpoint behavior tests |
+
+---
+
+## Implementation phases with acceptance criteria
+
+### Phase 1 — Shared helpers extraction
+
+**Work**
+- Create `dashboard_shared.py`.
+- Update fitness module imports.
+
+**Accept when**
+- Fitness tests pass unchanged.
+- API response metadata is byte-for-byte equivalent for fitness endpoints.
+
+### Phase 2 — Routing and navigation
+
+**Work**
+- Move fitness HTML route to `/dashboard/fitness`.
+- Add `/dashboard` redirect to `/dashboard/fitness`.
+- Add top nav to fitness page.
+
+**Accept when**
+- `/dashboard` returns redirect.
+- `/dashboard/fitness` serves existing fitness UI.
+
+### Phase 3 — Finance backend
+
+**Work**
+- Build finance router with 3 API endpoints + `/dashboard/finance`.
+- Implement shared transaction fetch/filter utility.
+- Implement categorization function and merchant normalization helper.
+
+**Accept when**
+- Each endpoint returns valid JSON shape on seeded data.
+- Empty-range queries return 200 with empty lists + zeroed summaries.
+
+### Phase 4 — Finance frontend
+
+**Work**
+- Implement finance page layout + nav (Finance active).
+- Add summary cards, tabs, charts, and table.
+- Wire date filters to endpoint query params.
+
+**Accept when**
+- All three views render from live API data.
+- Preset ranges and manual date range both update all visible widgets.
+
+### Phase 5 — Tests and polish
+
+**Work**
+- Add unit tests for categorization precedence/normalization.
+- Add API tests for overview, merchants, cards, date validation, empty ranges.
+
+**Accept when**
+- New finance tests pass.
+- Existing dashboard tests still pass.
+
+---
+
+## Test plan (recommended specifics)
+
+1. **Categorization**
+   - `"UBER EATS"` => dining (beats `"uber"` transportation due to longer match).
+   - punctuation/case normalization (e.g., `"APPLE.COM/BILL"`).
+   - Teller category fallback when merchant unmatched.
+   - `"general"` + unmatched => `"other"`.
+
+2. **Spend math**
+   - verify refunds/positive amounts are excluded (or consistently handled per chosen rule).
+   - verify totals match sum of returned rows.
+
+3. **API contracts**
+   - response contains metadata keys.
+   - numeric fields are numbers, not strings.
+   - merchants sorted desc by spend.
+
+4. **Routing**
+   - `/dashboard` redirect behavior.
+   - both `/dashboard/fitness` and `/dashboard/finance` return HTML.
+
+---
+
+## Risks and mitigations
+
+- **Risk:** misinterpreting amount signs inflates/deflates spend.  
+  **Mitigation:** lock sign rule + add dedicated tests.
+
+- **Risk:** keyword map overfits and mislabels major merchants.  
+  **Mitigation:** include `uncategorized_count` metric in overview for visibility.
+
+- **Risk:** SQL duplication across endpoints causes drift.  
+  **Mitigation:** shared `_fetch_transactions()` and shared filter builder.
+
+---
+
+## Rollout checklist
+
+1. Run tests:
+   - `pytest tests/test_dashboard.py tests/test_finance.py -v`
+2. Manual verify:
+   - `/dashboard` redirects to `/dashboard/fitness`
+   - nav switches pages
+   - finance filters and tabs work
+3. Spot-check 10 known transactions against category assignment.
+
+---
+
+## Notes for future V2 (optional)
+
+- Persist per-merchant category overrides table.
+- Add month-over-month deltas and trend arrows.
+- Add transaction drill-down table with search.
+- Add CSV export for filtered transactions.
