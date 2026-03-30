@@ -129,17 +129,17 @@ def get_running_data(start: str | None = None, end: str | None = None):
             ORDER BY w.start_time
         """), {"start": start_date, "end": end_date}).fetchall()
 
-        # Get step counts per workout separately (avoids expensive 3-way JOIN)
-        step_rows = session.execute(text("""
-            SELECT w.id, sum(m.value) as total_steps
+        # Get avg stride length per workout (to derive cadence = speed / stride)
+        stride_rows = session.execute(text("""
+            SELECT w.id, round(avg(m.value)::numeric, 4) as avg_stride_m
             FROM healthkit.workouts w
-            JOIN healthkit.metrics m ON m.metric_type = 'step_count'
+            JOIN healthkit.metrics m ON m.metric_type = 'running_stride_length'
               AND m.recorded_at BETWEEN w.start_time AND w.end_time
             WHERE w.workout_type = 'Running'
               AND (w.start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
             GROUP BY w.id
         """), {"start": start_date, "end": end_date}).fetchall()
-        steps_by_id = {r[0]: float(r[1]) for r in step_rows}
+        stride_by_id = {r[0]: float(r[1]) for r in stride_rows}
 
         runs = []
         for row in rows:
@@ -149,8 +149,12 @@ def get_running_data(start: str | None = None, end: str | None = None):
             speed = float(row[3]) if row[3] else None
             avg_power = float(row[4]) if row[4] else None
             distance_mi = round(speed * (duration_min / 60.0), 2) if speed and duration_min else None
-            total_steps = steps_by_id.get(w_id)
-            cadence = round(total_steps / duration_min) if total_steps and duration_min and duration_min > 0 else None
+            # Cadence = speed (m/min) / stride (m) = steps per minute
+            stride_m = stride_by_id.get(w_id)
+            cadence = None
+            if speed and stride_m and stride_m > 0:
+                speed_m_per_min = speed * 26.8224  # mph to m/min
+                cadence = round(speed_m_per_min / stride_m)
 
             runs.append({
                 "date": d,
