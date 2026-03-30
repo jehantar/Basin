@@ -232,24 +232,12 @@
   }
   .cal-day.active { background: #22c55e; border-color: #22c55e; }
   .cal-day .cal-tip {
-    display: none; position: absolute; left: 50%; transform: translateX(-50%);
+    display: none; position: absolute;
     background: #f1f5f9; color: #0f172a; padding: 6px 10px; border-radius: 6px;
     font-size: 0.7rem; white-space: nowrap; z-index: 10; pointer-events: none;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    bottom: 20px;
   }
-  .cal-day .cal-tip::after {
-    content: ''; position: absolute; left: 50%; transform: translateX(-50%);
-    border: 5px solid transparent;
-    top: 100%; border-top-color: #f1f5f9;
-  }
-  .cal-day .cal-tip.below {
-    bottom: auto; top: 20px;
-  }
-  .cal-day .cal-tip.below::after {
-    top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: #f1f5f9;
-  }
-  .cal-day:hover .cal-tip { display: block; }
+  /* tooltip shown/hidden via JS mouseenter/mouseleave */
   .calendar-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 0.65rem; color: #475569; }
   .legend-item { display: flex; align-items: center; gap: 4px; }
   .legend-box { width: 10px; height: 10px; border-radius: 2px; }
@@ -1130,9 +1118,49 @@
             tipText += ' — Rest day';
           }
           var tipEl = document.createElement('span');
-          tipEl.className = 'cal-tip' + (d < 3 ? ' below' : '');
+          tipEl.className = 'cal-tip';
           tipEl.textContent = tipText;
           cell.appendChild(tipEl);
+
+          // Position tooltip to avoid clipping on all edges
+          (function(c, tip, dayIdx) {
+            c.addEventListener('mouseenter', function() {
+              var strip = document.getElementById('calendarStrip');
+              var cellRect = c.getBoundingClientRect();
+              var stripRect = strip.getBoundingClientRect();
+
+              // Vertical: show above by default, below for top rows
+              if (dayIdx < 3) {
+                tip.style.top = '20px';
+                tip.style.bottom = 'auto';
+              } else {
+                tip.style.bottom = '20px';
+                tip.style.top = 'auto';
+              }
+
+              // Horizontal: center by default, but shift if near edges
+              tip.style.left = '50%';
+              tip.style.right = 'auto';
+              tip.style.transform = 'translateX(-50%)';
+
+              // Check after display
+              tip.style.display = 'block';
+              var tipRect = tip.getBoundingClientRect();
+
+              if (tipRect.right > stripRect.right - 8) {
+                tip.style.left = 'auto';
+                tip.style.right = '0';
+                tip.style.transform = 'none';
+              } else if (tipRect.left < stripRect.left + 8) {
+                tip.style.left = '0';
+                tip.style.right = 'auto';
+                tip.style.transform = 'none';
+              }
+            });
+            c.addEventListener('mouseleave', function() {
+              tip.style.display = 'none';
+            });
+          })(cell, tipEl, d);
         }
 
         week.appendChild(cell);
