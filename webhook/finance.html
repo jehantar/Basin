@@ -502,6 +502,9 @@
     transition: max-height 0.4s ease;
     background: rgba(10,15,26,0.3);
   }
+  .cb-txn-list.open {
+    overflow-y: auto;
+  }
   .cb-txn-row {
     display: grid;
     grid-template-columns: 90px 1fr auto;
@@ -712,6 +715,18 @@
           </thead>
           <tbody id="merchantsBody"></tbody>
         </table>
+      </div>
+      <div id="merchantDrill" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;">
+          <span class="drilldown-title" id="merchantDrillTitle"></span>
+          <button class="drilldown-close" id="merchantDrillClose" tabindex="0">Close</button>
+        </div>
+        <div class="table-wrapper" style="max-height:300px;">
+          <table class="data-table">
+            <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Card</th></tr></thead>
+            <tbody id="merchantDrillBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -1075,6 +1090,13 @@
       },
       bargap: 0.3
     }), { responsive: true, displayModeBar: false });
+
+    // Click on bar → show transactions for that month
+    el.on('plotly_click', function(data) {
+      if (!data.points || !data.points[0]) return;
+      var month = data.points[0].x;
+      showMonthDrilldown(month);
+    });
   }
 
   function renderCategoryDonut() {
@@ -1187,6 +1209,63 @@
     wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
+  function showMerchantDrilldown(merchant) {
+    var wrapper = $('merchantDrill');
+    var title = $('merchantDrillTitle');
+    var tbody = $('merchantDrillBody');
+    clearChildren(tbody);
+
+    var txns = merchant.transactions || [];
+    title.textContent = merchant.name + ' — ' + txns.length + ' transactions';
+    wrapper.style.display = 'block';
+
+    txns.forEach(function(t) {
+      var tr = document.createElement('tr');
+      tr.appendChild(createEl('td', null, t.date));
+      tr.appendChild(createEl('td', null, t.description || '---'));
+      var tdAmt = createEl('td', 'td-money', fmtMoney(t.amount));
+      tr.appendChild(tdAmt);
+      tr.appendChild(createEl('td', null, t.card || '---'));
+      tbody.appendChild(tr);
+    });
+
+    $('merchantDrillClose').onclick = function() { wrapper.style.display = 'none'; };
+    $('merchantDrillClose').onkeydown = function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); wrapper.style.display = 'none'; }
+    };
+    wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function showMonthDrilldown(month) {
+    var txns = (overviewData.transactions || []).filter(function(t) {
+      return t.date.slice(0, 7) === month;
+    });
+    // Reuse the spending drilldown panel
+    var wrapper = $('txnDrilldown');
+    var title = $('txnDrillTitle');
+    var tbody = $('txnDrillBody');
+    clearChildren(tbody);
+
+    title.textContent = month + ' — ' + txns.length + ' transactions';
+    wrapper.style.display = 'block';
+
+    txns.forEach(function(t) {
+      var tr = document.createElement('tr');
+      tr.appendChild(createEl('td', null, t.date));
+      tr.appendChild(createEl('td', null, t.description || '---'));
+      var tdAmt = createEl('td', 'td-money', fmtMoney(t.amount));
+      tr.appendChild(tdAmt);
+      tr.appendChild(createEl('td', null, t.card || '---'));
+      tbody.appendChild(tr);
+    });
+
+    $('txnDrillClose').onclick = function() { wrapper.style.display = 'none'; };
+    $('txnDrillClose').onkeydown = function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); wrapper.style.display = 'none'; }
+    };
+    wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   /* ── Merchants Panel ── */
   function renderMerchants() {
     var body = $('merchantsBody');
@@ -1208,6 +1287,7 @@
     var merchants = merchantsData.merchants.slice(0, 25);
     merchants.forEach(function(m, i) {
       var tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
 
       var tdRank = document.createElement('td');
       tdRank.className = 'td-rank';
@@ -1233,6 +1313,13 @@
       tdAvg.className = 'td-count';
       tdAvg.textContent = fmtMoney(m.avg_transaction);
       tr.appendChild(tdAvg);
+
+      // Click to drill down into merchant transactions
+      (function(merchant) {
+        tr.addEventListener('click', function() {
+          showMerchantDrilldown(merchant);
+        });
+      })(m);
 
       body.appendChild(tr);
     });
@@ -1322,16 +1409,17 @@
         function toggle() {
           open = !open;
           if (open) {
-            list.style.maxHeight = list.scrollHeight + 'px';
+            list.style.maxHeight = '300px';
+            list.classList.add('open');
             btn.classList.add('open');
             btn.setAttribute('aria-expanded', 'true');
-            // Update text
             while (btn.firstChild) btn.removeChild(btn.firstChild);
             btn.appendChild(document.createTextNode('Hide transactions '));
             var a = createEl('span', 'cb-toggle-arrow', '\u25BC');
             btn.appendChild(a);
           } else {
             list.style.maxHeight = '0';
+            list.classList.remove('open');
             btn.classList.remove('open');
             btn.setAttribute('aria-expanded', 'false');
             while (btn.firstChild) btn.removeChild(btn.firstChild);
