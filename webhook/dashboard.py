@@ -75,19 +75,16 @@ def get_calendar_data(start: str | None = None, end: str | None = None):
 
     with get_session() as session:
         rows = session.execute(text("""
-            SELECT date, array_agg(DISTINCT source ORDER BY source) as types, count(DISTINCT source) as count
+            SELECT date, array_agg(DISTINCT label ORDER BY label) as labels
             FROM (
-                SELECT (started_at AT TIME ZONE 'UTC')::date as date, 'strength' as source
+                SELECT (started_at AT TIME ZONE 'UTC')::date as date, title as label
                 FROM hevy.workouts
                 WHERE (started_at AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
                 UNION ALL
-                SELECT (start_time AT TIME ZONE 'UTC')::date as date,
-                       CASE WHEN workout_type IN ('Strength Training', 'Functional Strength') THEN 'strength'
-                            WHEN workout_type = 'Running' THEN 'running'
-                            ELSE 'other'
-                       END as source
+                SELECT (start_time AT TIME ZONE 'UTC')::date as date, workout_type as label
                 FROM healthkit.workouts
                 WHERE (start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+                  AND workout_type NOT IN ('Strength Training', 'Functional Strength')
             ) combined
             GROUP BY date
             ORDER BY date
@@ -95,8 +92,7 @@ def get_calendar_data(start: str | None = None, end: str | None = None):
 
         days = [{
             "date": str(r[0]),
-            "types": list(r[1]),
-            "count": r[2],
+            "labels": list(r[1]),
         } for r in rows]
 
     return {**_response_metadata(start_date, end_date), "days": days}

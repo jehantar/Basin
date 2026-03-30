@@ -222,9 +222,8 @@
     font-size: 0.6rem; color: #475569;
   }
   .calendar-day-labels span { height: 14px; line-height: 14px; }
-  .calendar-dates { display: flex; font-size: 0.55rem; color: #475569; margin-bottom: 4px; padding-left: 28px; }
-  .calendar-dates span { width: 17px; text-align: center; flex-shrink: 0; }
-  .calendar-dates span.has-label { width: 17px; overflow: visible; white-space: nowrap; text-align: left; }
+  .calendar-months-row { display: flex; font-size: 0.6rem; color: #64748b; margin-bottom: 2px; padding-left: 28px; }
+  .calendar-months-row span { flex-shrink: 0; }
   .calendar-grid { display: flex; gap: 3px; overflow-x: auto; }
   .cal-week { display: flex; flex-direction: column; gap: 3px; }
   .cal-day {
@@ -330,7 +329,7 @@
     <span class="calendar-title">Training Activity</span>
     <span class="calendar-stat" id="calendarStat"></span>
   </div>
-  <div class="calendar-dates" id="calendarDates"></div>
+  <div class="calendar-months-row" id="calendarMonthsRow"></div>
   <div class="calendar-body">
     <div class="calendar-day-labels">
       <span></span>
@@ -1044,17 +1043,17 @@
   // -- Calendar heatmap --
   function renderCalendar(calData) {
     var grid = $('calendarGrid');
-    var datesEl = $('calendarDates');
+    var monthsRow = $('calendarMonthsRow');
     var stat = $('calendarStat');
     clearChildren(grid);
-    clearChildren(datesEl);
+    clearChildren(monthsRow);
 
     if (!calData || !calData.days) return;
 
     var dayMap = {};
     var totalDays = 0;
     calData.days.forEach(function(d) {
-      dayMap[d.date] = true;
+      dayMap[d.date] = d.labels || [];
       totalDays++;
     });
 
@@ -1099,11 +1098,18 @@
         var dateStr = cursor.toISOString().split('T')[0];
 
         if (cursor >= startDate && cursor <= endDate) {
-          if (dayMap[dateStr]) {
+          var labels = dayMap[dateStr];
+          if (labels) {
             cell.className += ' active';
           }
           var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-          cell.title = dayNames[cursor.getDay()] + ' ' + dateStr + (dayMap[dateStr] ? ' - Trained' : ' - Rest');
+          var tip = dayNames[cursor.getDay()] + ', ' + MONTHS[cursor.getMonth()] + ' ' + cursor.getDate();
+          if (labels) {
+            tip += '\n' + labels.join(', ');
+          } else {
+            tip += '\nRest day';
+          }
+          cell.title = tip;
         }
 
         week.appendChild(cell);
@@ -1114,32 +1120,35 @@
       weekCount++;
     }
 
-    // Build week-start date labels above the grid
-    // Show a label every 4 weeks to avoid clutter, plus on month boundaries
+    // Build month labels — GitHub style: show month name at the first week of each month
     var cursor2 = new Date(startDate);
     cursor2.setDate(cursor2.getDate() + alignOffset);
-    var weekIdx = 0;
-    var lastLabelWeek = -4; // force first label
+    var prevMonth = -1;
+    var weeksInMonth = 0;
+    var pendingMonth = null;
 
     while (cursor2 <= endDate) {
-      var span = document.createElement('span');
       var weekMonday = new Date(cursor2);
+      var m = weekMonday.getMonth();
 
-      // Show label every 4 weeks, or at the start of a new month
-      var isMonthStart = weekMonday.getDate() <= 7 && weekMonday >= startDate;
-      var isDue = (weekIdx - lastLabelWeek) >= 4;
-
-      if ((isDue || isMonthStart) && weekMonday >= startDate) {
-        var m = MONTHS[weekMonday.getMonth()];
-        var day = weekMonday.getDate();
-        span.textContent = m + ' ' + day;
-        span.className = 'has-label';
-        lastLabelWeek = weekIdx;
+      if (m !== prevMonth && weekMonday >= startDate) {
+        // Flush previous month span
+        if (pendingMonth) {
+          pendingMonth.style.width = (weeksInMonth * 17) + 'px';
+          monthsRow.appendChild(pendingMonth);
+        }
+        pendingMonth = document.createElement('span');
+        pendingMonth.textContent = MONTHS[m];
+        weeksInMonth = 0;
+        prevMonth = m;
       }
-
-      datesEl.appendChild(span);
+      weeksInMonth++;
       cursor2.setDate(cursor2.getDate() + 7);
-      weekIdx++;
+    }
+    // Flush last month
+    if (pendingMonth) {
+      pendingMonth.style.width = (weeksInMonth * 17) + 'px';
+      monthsRow.appendChild(pendingMonth);
     }
   }
 
