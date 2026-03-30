@@ -231,13 +231,12 @@
     position: relative; cursor: default;
   }
   .cal-day.active { background: #22c55e; border-color: #22c55e; }
-  .cal-day .cal-tip {
-    display: none; position: absolute;
+  #calTooltip {
+    display: none; position: fixed;
     background: #f1f5f9; color: #0f172a; padding: 6px 10px; border-radius: 6px;
-    font-size: 0.7rem; white-space: nowrap; z-index: 10; pointer-events: none;
+    font-size: 0.75rem; white-space: nowrap; z-index: 100; pointer-events: none;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   }
-  /* tooltip shown/hidden via JS mouseenter/mouseleave */
   .calendar-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 0.65rem; color: #475569; }
   .legend-item { display: flex; align-items: center; gap: 4px; }
   .legend-box { width: 10px; height: 10px; border-radius: 2px; }
@@ -297,6 +296,7 @@
 </style>
 </head>
 <body>
+<div id="calTooltip"></div>
 
 <div class="header">
   <h1>Basin &mdash; Fitness</h1>
@@ -1118,49 +1118,26 @@
             tipText += ' — Rest day';
           }
           var tipEl = document.createElement('span');
-          tipEl.className = 'cal-tip';
-          tipEl.textContent = tipText;
-          cell.appendChild(tipEl);
-
-          // Position tooltip to avoid clipping on all edges
-          (function(c, tip, dayIdx) {
-            c.addEventListener('mouseenter', function() {
-              var strip = document.getElementById('calendarStrip');
-              var cellRect = c.getBoundingClientRect();
-              var stripRect = strip.getBoundingClientRect();
-
-              // Vertical: show above by default, below for top rows
-              if (dayIdx < 3) {
-                tip.style.top = '20px';
-                tip.style.bottom = 'auto';
-              } else {
-                tip.style.bottom = '20px';
-                tip.style.top = 'auto';
-              }
-
-              // Horizontal: center by default, but shift if near edges
-              tip.style.left = '50%';
-              tip.style.right = 'auto';
-              tip.style.transform = 'translateX(-50%)';
-
-              // Check after display
+          (function(c, text) {
+            c.addEventListener('mouseenter', function(e) {
+              var tip = document.getElementById('calTooltip');
+              tip.textContent = text;
               tip.style.display = 'block';
-              var tipRect = tip.getBoundingClientRect();
-
-              if (tipRect.right > stripRect.right - 8) {
-                tip.style.left = 'auto';
-                tip.style.right = '0';
-                tip.style.transform = 'none';
-              } else if (tipRect.left < stripRect.left + 8) {
-                tip.style.left = '0';
-                tip.style.right = 'auto';
-                tip.style.transform = 'none';
-              }
+              var rect = c.getBoundingClientRect();
+              var tipW = tip.offsetWidth;
+              var tipH = tip.offsetHeight;
+              // Center horizontally above cell, clamp to viewport
+              var left = rect.left + rect.width / 2 - tipW / 2;
+              left = Math.max(8, Math.min(left, window.innerWidth - tipW - 8));
+              var top = rect.top - tipH - 8;
+              if (top < 8) top = rect.bottom + 8;
+              tip.style.left = left + 'px';
+              tip.style.top = top + 'px';
             });
             c.addEventListener('mouseleave', function() {
-              tip.style.display = 'none';
+              document.getElementById('calTooltip').style.display = 'none';
             });
-          })(cell, tipEl, d);
+          })(cell, tipText);
         }
 
         week.appendChild(cell);
