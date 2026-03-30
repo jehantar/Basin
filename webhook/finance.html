@@ -1255,8 +1255,10 @@
   }
 
   function showMonthDrilldown(month) {
+    // Plotly may pass "2026-01-01" or "2026-01" — normalize to YYYY-MM
+    var monthKey = month.slice(0, 7);
     var txns = (overviewData.transactions || []).filter(function(t) {
-      return t.date.slice(0, 7) === month;
+      return t.date.slice(0, 7) === monthKey;
     });
     // Reuse the spending drilldown panel
     var wrapper = $('txnDrilldown');
@@ -1264,7 +1266,10 @@
     var tbody = $('txnDrillBody');
     clearChildren(tbody);
 
-    title.textContent = month + ' — ' + txns.length + ' transactions';
+    var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var parts = monthKey.split('-');
+    var monthLabel = MONTH_NAMES[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
+    title.textContent = monthLabel + ' — ' + txns.length + ' transactions';
     wrapper.style.display = 'block';
 
     txns.forEach(function(t) {
