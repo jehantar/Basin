@@ -99,6 +99,32 @@ def categorize_transaction(description: str | None, counterparty: str | None, te
     return "other"
 
 
+# --- Display bucket mapping (collapse fine categories into ~7 display groups) ---
+
+DISPLAY_BUCKETS = {
+    "groceries": "Food & Dining",
+    "dining": "Food & Dining",
+    "shopping": "Shopping",
+    "travel": "Travel & Transport",
+    "transportation": "Travel & Transport",
+    "fuel": "Travel & Transport",
+    "fitness": "Health & Fitness",
+    "health": "Health & Fitness",
+    "subscriptions": "Living",
+    "utilities": "Living",
+    "insurance": "Living",
+    "auto": "Living",
+    "entertainment": "Entertainment",
+    "service": "Other",
+    "other": "Other",
+}
+
+
+def display_category(raw_category: str) -> str:
+    """Map a fine-grained category to a display bucket."""
+    return DISPLAY_BUCKETS.get(raw_category, "Other")
+
+
 # --- Shared transaction fetching ---
 
 def _fetch_spend_transactions(session, start_date: date, end_date: date) -> list[dict]:
@@ -136,7 +162,8 @@ def _fetch_spend_transactions(session, start_date: date, end_date: date) -> list
         if "automatic payment" in desc_lower or "autopay" in desc_lower or "payment thank you" in desc_lower:
             continue
 
-        effective_category = categorize_transaction(description, counterparty, teller_cat)
+        raw_category = categorize_transaction(description, counterparty, teller_cat)
+        effective_category = display_category(raw_category)
 
         transactions.append({
             "amount": round(amount, 2),
