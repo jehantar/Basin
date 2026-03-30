@@ -16,6 +16,20 @@
   }
   a { color: #3b82f6; }
 
+  /* Top navigation */
+  .top-nav {
+    display: flex; gap: 0; margin-bottom: 20px;
+    border-bottom: 2px solid #334155;
+  }
+  .nav-tab {
+    padding: 10px 24px; font-size: 0.9rem; font-weight: 600;
+    color: #64748b; text-decoration: none;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s; margin-bottom: -2px;
+  }
+  .nav-tab:hover { color: #94a3b8; }
+  .nav-tab.active { color: #f1f5f9; border-bottom-color: #3b82f6; }
+
   /* Header */
   .header {
     display: flex;
@@ -297,6 +311,10 @@
 </head>
 <body>
 <div id="calTooltip"></div>
+<nav class="top-nav">
+  <a href="/dashboard/fitness" class="nav-tab active">Fitness</a>
+  <a href="/dashboard/finance" class="nav-tab">Finance</a>
+</nav>
 
 <div class="header">
   <h1>Basin &mdash; Fitness</h1>

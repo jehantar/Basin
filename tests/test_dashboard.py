@@ -6,8 +6,8 @@ from sqlalchemy import text
 
 
 def test_dashboard_html_served(client):
-    """GET /dashboard returns HTML."""
-    resp = client.get("/dashboard")
+    """GET /dashboard/fitness returns HTML."""
+    resp = client.get("/dashboard/fitness")
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
 

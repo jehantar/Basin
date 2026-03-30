@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
 
 from shared.db import get_session, bulk_upsert
@@ -20,6 +20,13 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Basin Webhook")
 app.include_router(dashboard_router)
+
+from webhook.finance import router as finance_router
+app.include_router(finance_router)
+
+@app.get("/dashboard")
+def dashboard_redirect():
+    return RedirectResponse(url="/dashboard/fitness", status_code=307)
 
 HEALTHKIT_FAILED_DIR = "/data/healthkit/failed"
 
@@ -174,7 +181,6 @@ def schwab_auth_redirect():
         "client_id": config["client_id"],
         "redirect_uri": config["redirect_uri"],
     })
-    from fastapi.responses import RedirectResponse
     return RedirectResponse(
         url=f"https://api.schwabapi.com/v1/oauth/authorize?{params}",
         status_code=307,

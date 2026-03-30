@@ -12,7 +12,7 @@ from webhook.dashboard_shared import _parse_date_range, _response_metadata
 router = APIRouter()
 
 
-@router.get("/dashboard")
+@router.get("/dashboard/fitness")
 def serve_dashboard():
     """Serve the fitness dashboard HTML page."""
     html_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
