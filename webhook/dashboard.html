@@ -222,8 +222,9 @@
     font-size: 0.6rem; color: #475569;
   }
   .calendar-day-labels span { height: 14px; line-height: 14px; }
-  .calendar-months { display: flex; font-size: 0.6rem; color: #475569; margin-bottom: 4px; padding-left: 28px; }
-  .calendar-months span { text-align: left; }
+  .calendar-dates { display: flex; font-size: 0.55rem; color: #475569; margin-bottom: 4px; padding-left: 28px; }
+  .calendar-dates span { width: 17px; text-align: center; flex-shrink: 0; }
+  .calendar-dates span.has-label { width: 17px; overflow: visible; white-space: nowrap; text-align: left; }
   .calendar-grid { display: flex; gap: 3px; overflow-x: auto; }
   .cal-week { display: flex; flex-direction: column; gap: 3px; }
   .cal-day {
@@ -329,7 +330,7 @@
     <span class="calendar-title">Training Activity</span>
     <span class="calendar-stat" id="calendarStat"></span>
   </div>
-  <div class="calendar-months" id="calendarMonths"></div>
+  <div class="calendar-dates" id="calendarDates"></div>
   <div class="calendar-body">
     <div class="calendar-day-labels">
       <span></span>
@@ -1043,10 +1044,10 @@
   // -- Calendar heatmap --
   function renderCalendar(calData) {
     var grid = $('calendarGrid');
-    var monthsEl = $('calendarMonths');
+    var datesEl = $('calendarDates');
     var stat = $('calendarStat');
     clearChildren(grid);
-    clearChildren(monthsEl);
+    clearChildren(datesEl);
 
     if (!calData || !calData.days) return;
 
@@ -1113,33 +1114,33 @@
       weekCount++;
     }
 
-    // Build month labels positioned above the grid
+    // Build week-start date labels above the grid
+    // Show a label every 4 weeks to avoid clutter, plus on month boundaries
     var cursor2 = new Date(startDate);
     cursor2.setDate(cursor2.getDate() + alignOffset);
-    var prevMonth = -1;
     var weekIdx = 0;
-    var monthPositions = [];
+    var lastLabelWeek = -4; // force first label
 
     while (cursor2 <= endDate) {
-      var m = cursor2.getMonth();
-      if (m !== prevMonth && cursor2 >= startDate) {
-        monthPositions.push({ month: MONTHS[m], week: weekIdx });
-        prevMonth = m;
+      var span = document.createElement('span');
+      var weekMonday = new Date(cursor2);
+
+      // Show label every 4 weeks, or at the start of a new month
+      var isMonthStart = weekMonday.getDate() <= 7 && weekMonday >= startDate;
+      var isDue = (weekIdx - lastLabelWeek) >= 4;
+
+      if ((isDue || isMonthStart) && weekMonday >= startDate) {
+        var m = MONTHS[weekMonday.getMonth()];
+        var day = weekMonday.getDate();
+        span.textContent = m + ' ' + day;
+        span.className = 'has-label';
+        lastLabelWeek = weekIdx;
       }
+
+      datesEl.appendChild(span);
       cursor2.setDate(cursor2.getDate() + 7);
       weekIdx++;
     }
-
-    // Render month labels with appropriate spacing
-    var lastWeekPos = 0;
-    monthPositions.forEach(function(mp) {
-      var span = document.createElement('span');
-      span.textContent = mp.month;
-      var gapWeeks = mp.week - lastWeekPos;
-      span.style.width = (gapWeeks * 17) + 'px'; // 14px cell + 3px gap
-      monthsEl.appendChild(span);
-      lastWeekPos = mp.week;
-    });
   }
 
   // -- Panel switching --
