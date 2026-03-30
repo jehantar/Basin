@@ -68,6 +68,36 @@ def serve_dashboard():
         return HTMLResponse(f.read())
 
 
+@router.get("/api/fitness/calendar")
+def get_calendar_data(start: str | None = None, end: str | None = None):
+    """Training calendar: workout counts per day from all sources."""
+    start_date, end_date = _parse_date_range(start, end)
+
+    with get_session() as session:
+        rows = session.execute(text("""
+            SELECT date, array_agg(DISTINCT label ORDER BY label) as labels
+            FROM (
+                SELECT (started_at AT TIME ZONE 'UTC')::date as date, title as label
+                FROM hevy.workouts
+                WHERE (started_at AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+                UNION ALL
+                SELECT (start_time AT TIME ZONE 'UTC')::date as date, workout_type as label
+                FROM healthkit.workouts
+                WHERE (start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+                  AND workout_type NOT IN ('Strength Training', 'Functional Strength')
+            ) combined
+            GROUP BY date
+            ORDER BY date
+        """), {"start": start_date, "end": end_date}).fetchall()
+
+        days = [{
+            "date": str(r[0]),
+            "labels": list(r[1]),
+        } for r in rows]
+
+    return {**_response_metadata(start_date, end_date), "days": days}
+
+
 @router.get("/api/fitness/running")
 def get_running_data(start: str | None = None, end: str | None = None):
     start_date, end_date = _parse_date_range(start, end)
@@ -80,7 +110,8 @@ def get_running_data(start: str | None = None, end: str | None = None):
                    (w.start_time AT TIME ZONE 'UTC')::date as date,
                    round((w.duration_sec / 60.0)::numeric, 1) as duration_min,
                    round(avg(speed.value)::numeric, 2) as avg_speed,
-                   round(avg(power.value)::numeric, 0) as avg_power
+                   round(avg(power.value)::numeric, 0) as avg_power,
+                   w.start_time, w.end_time
             FROM healthkit.workouts w
             LEFT JOIN healthkit.metrics speed
               ON speed.metric_type = 'running_speed'
@@ -90,17 +121,36 @@ def get_running_data(start: str | None = None, end: str | None = None):
               AND power.recorded_at BETWEEN w.start_time AND w.end_time
             WHERE w.workout_type = 'Running'
               AND (w.start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
-            GROUP BY w.id, w.start_time, w.duration_sec
+            GROUP BY w.id, w.start_time, w.end_time, w.duration_sec
             ORDER BY w.start_time
         """), {"start": start_date, "end": end_date}).fetchall()
 
+        # Get avg stride length per workout (to derive cadence = speed / stride)
+        stride_rows = session.execute(text("""
+            SELECT w.id, round(avg(m.value)::numeric, 4) as avg_stride_m
+            FROM healthkit.workouts w
+            JOIN healthkit.metrics m ON m.metric_type = 'running_stride_length'
+              AND m.recorded_at BETWEEN w.start_time AND w.end_time
+            WHERE w.workout_type = 'Running'
+              AND (w.start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+            GROUP BY w.id
+        """), {"start": start_date, "end": end_date}).fetchall()
+        stride_by_id = {r[0]: float(r[1]) for r in stride_rows}
+
         runs = []
         for row in rows:
+            w_id = row[0]
             d = str(row[1])
             duration_min = float(row[2]) if row[2] else None
             speed = float(row[3]) if row[3] else None
             avg_power = float(row[4]) if row[4] else None
             distance_mi = round(speed * (duration_min / 60.0), 2) if speed and duration_min else None
+            # Cadence = speed (m/min) / stride (m) = steps per minute
+            stride_m = stride_by_id.get(w_id)
+            cadence = None
+            if speed and stride_m and stride_m > 0:
+                speed_m_per_min = speed * 26.8224  # mph to m/min
+                cadence = round(speed_m_per_min / stride_m)
 
             runs.append({
                 "date": d,
@@ -108,6 +158,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
                 "duration_min": duration_min,
                 "distance_mi": distance_mi,
                 "avg_power": avg_power,
+                "cadence_spm": cadence,
             })
 
         total_runs = len(runs)
@@ -178,39 +229,101 @@ def get_strength_data(
     start: str | None = None,
     end: str | None = None,
     exercise: str | None = None,
+    title: str | None = None,
 ):
     start_date, end_date = _parse_date_range(start, end)
 
     with get_session() as session:
-        exercise_filter = ""
+        filters = ""
         params: dict = {"start": start_date, "end": end_date}
         if exercise:
-            exercise_filter = "AND e.name = :exercise"
+            filters += " AND e.name = :exercise"
             params["exercise"] = exercise
+        if title:
+            filters += " AND w.title = :title"
+            params["title"] = title
 
-        sets_rows = session.execute(text(f"""
-            SELECT (w.started_at AT TIME ZONE 'UTC')::date as date,
-                   e.name as exercise,
+        # Workout titles (deterministic sort: frequency desc, latest date desc, title asc)
+        # Computed from date range only (ignoring title filter so tabs stay stable)
+        title_rows = session.execute(text("""
+            SELECT w.title, count(*) as cnt, max((w.started_at AT TIME ZONE 'UTC')::date) as latest
+            FROM hevy.workouts w
+            WHERE (w.started_at AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+            GROUP BY w.title
+            ORDER BY cnt DESC, latest DESC, lower(w.title) ASC
+        """), {"start": start_date, "end": end_date}).fetchall()
+        workout_titles = [r[0] for r in title_rows]
+
+        # Workouts with nested exercises and sets (set-based, no N+1)
+        all_rows = session.execute(text(f"""
+            SELECT w.id as workout_id,
+                   (w.started_at AT TIME ZONE 'UTC')::date as date,
+                   w.title,
+                   e.name as exercise_name,
+                   s.set_index,
                    round(s.weight_lbs::numeric, 0) as weight_lbs,
                    s.reps,
-                   s.set_index,
                    s.set_type
             FROM hevy.sets s
             JOIN hevy.exercises e ON s.exercise_id = e.id
             JOIN hevy.workouts w ON s.workout_id = w.id
             WHERE (w.started_at AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
-              {exercise_filter}
+              {filters}
             ORDER BY w.started_at, e.name, s.set_index
         """), params).fetchall()
 
+        # Group into workouts -> exercises -> sets
+        from collections import OrderedDict
+        workout_map = OrderedDict()
+        for r in all_rows:
+            w_id = r[0]
+            if w_id not in workout_map:
+                workout_map[w_id] = {
+                    "date": str(r[1]),
+                    "title": r[2],
+                    "exercises": OrderedDict(),
+                    "_sets_total": 0,
+                }
+            wk = workout_map[w_id]
+            ex_name = r[3]
+            if ex_name not in wk["exercises"]:
+                wk["exercises"][ex_name] = {"name": ex_name, "sets": [], "volume_lbs": 0}
+            ex = wk["exercises"][ex_name]
+            weight = int(r[5]) if r[5] is not None else None
+            reps = r[6]
+            set_type = r[7]
+            ex["sets"].append({
+                "set_index": r[4],
+                "weight_lbs": weight,
+                "reps": reps,
+                "set_type": set_type,
+            })
+            wk["_sets_total"] += 1
+            if set_type != "warmup" and weight is not None and reps and reps > 0:
+                ex["volume_lbs"] += weight * reps
+
+        workouts = []
+        for wk in workout_map.values():
+            exercises_list = list(wk["exercises"].values())
+            volume = sum(ex["volume_lbs"] for ex in exercises_list)
+            workouts.append({
+                "date": wk["date"],
+                "title": wk["title"],
+                "exercise_count": len(exercises_list),
+                "set_count": wk["_sets_total"],
+                "volume_lbs": volume,
+                "exercises": exercises_list,
+            })
+
+        # Legacy fields (backward compat)
         sets = [{
-            "date": str(r[0]),
-            "exercise": r[1],
-            "weight_lbs": int(r[2]) if r[2] is not None else None,
-            "reps": r[3],
+            "date": str(r[1]),
+            "exercise": r[3],
+            "weight_lbs": int(r[5]) if r[5] is not None else None,
+            "reps": r[6],
             "set_index": r[4],
-            "set_type": r[5],
-        } for r in sets_rows]
+            "set_type": r[7],
+        } for r in all_rows]
 
         exercises = sorted(set(s["exercise"] for s in sets))
 
@@ -226,7 +339,7 @@ def get_strength_data(
               AND s.set_type != 'warmup'
               AND s.reps > 0
               AND s.weight_lbs IS NOT NULL
-              {exercise_filter}
+              {filters}
             ORDER BY e.name, s.weight_lbs DESC, w.started_at ASC, s.set_index ASC
         """), params).fetchall()
 
@@ -238,6 +351,9 @@ def get_strength_data(
 
     return {
         **_response_metadata(start_date, end_date),
+        "workout_titles": workout_titles,
+        "workouts": workouts,
+        # Legacy fields (deprecated, kept for backward compat)
         "exercises": exercises,
         "sets": sets,
         "prs": prs,
