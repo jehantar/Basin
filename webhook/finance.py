@@ -198,11 +198,21 @@ def get_finance_overview(start: str | None = None, end: str | None = None):
         "uncategorized_count": uncategorized_count,
     }
 
+    # Simplified transaction list for drill-down
+    txn_list = [{
+        "date": t["date"],
+        "description": t["counterparty"] or t["description"],
+        "amount": t["amount"],
+        "category": t["category"],
+        "card": t["card_name"],
+    } for t in sorted(transactions, key=lambda x: x["date"], reverse=True)]
+
     return {
         **_response_metadata(start_date, end_date),
         "monthly_spend": monthly_spend,
         "category_breakdown": category_breakdown,
         "summary": summary,
+        "transactions": txn_list,
     }
 
 
@@ -251,14 +261,20 @@ def get_finance_cards(start: str | None = None, end: str | None = None):
     with get_session() as session:
         transactions = _fetch_spend_transactions(session, start_date, end_date)
 
-    # Aggregate by card
-    card_agg = defaultdict(lambda: {"total": 0.0, "count": 0, "categories": defaultdict(float), "last_four": ""})
+    # Aggregate by card + collect transactions per card
+    card_agg = defaultdict(lambda: {"total": 0.0, "count": 0, "categories": defaultdict(float), "last_four": "", "transactions": []})
     for t in transactions:
         key = t["card_name"]
         card_agg[key]["total"] += t["amount"]
         card_agg[key]["count"] += 1
         card_agg[key]["categories"][t["category"]] += t["amount"]
         card_agg[key]["last_four"] = t["last_four"]
+        card_agg[key]["transactions"].append({
+            "date": t["date"],
+            "description": t["counterparty"] or t["description"],
+            "amount": t["amount"],
+            "category": t["category"],
+        })
 
     cards = []
     for name, data in sorted(card_agg.items(), key=lambda x: x[1]["total"], reverse=True):
@@ -270,6 +286,7 @@ def get_finance_cards(start: str | None = None, end: str | None = None):
             "transaction_count": data["count"],
             "top_category": top_cat[0],
             "top_category_amount": round(top_cat[1], 2),
+            "transactions": sorted(data["transactions"], key=lambda x: x["date"], reverse=True),
         })
 
     return {

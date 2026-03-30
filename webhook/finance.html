@@ -361,6 +361,18 @@
       <div class="chart-area" id="chartMonthly"></div>
       <div class="chart-area" id="chartCategory"></div>
     </div>
+    <div id="txnDrilldown" style="display:none;margin-top:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span id="txnDrillTitle" style="font-size:0.85rem;color:#94a3b8;font-weight:600;"></span>
+        <button id="txnDrillClose" tabindex="0" style="background:#334155;border:none;color:#94a3b8;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:0.75rem;">Close</button>
+      </div>
+      <div class="merchants-table-wrapper" style="max-height:300px;">
+        <table class="merchants-table" id="txnDrillTable">
+          <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Card</th></tr></thead>
+          <tbody id="txnDrillBody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <div class="panel" id="panelMerchants">
@@ -705,6 +717,54 @@
       margin: { t: 50, b: 20, l: 20, r: 20 },
       showlegend: false
     }, { responsive: true, displayModeBar: false });
+
+    // Click on donut slice → show transactions for that category
+    el.on('plotly_click', function(data) {
+      if (!data.points || !data.points[0]) return;
+      var catName = data.points[0].label.toLowerCase();
+      showCategoryDrilldown(catName);
+    });
+  }
+
+  function showCategoryDrilldown(category) {
+    var panel = $('txnDrilldown');
+    var title = $('txnDrillTitle');
+    var tbody = $('txnDrillBody');
+    clearChildren(tbody);
+
+    var txns = (overviewData.transactions || []).filter(function(t) {
+      return t.category === category;
+    });
+
+    title.textContent = capitalize(category) + ' — ' + txns.length + ' transactions';
+    panel.style.display = 'block';
+
+    txns.forEach(function(t) {
+      var tr = document.createElement('tr');
+
+      var tdDate = document.createElement('td');
+      tdDate.textContent = t.date;
+      tr.appendChild(tdDate);
+
+      var tdDesc = document.createElement('td');
+      tdDesc.textContent = t.description || '---';
+      tr.appendChild(tdDesc);
+
+      var tdAmt = document.createElement('td');
+      tdAmt.className = 'spend-value';
+      tdAmt.textContent = fmtMoney(t.amount);
+      tr.appendChild(tdAmt);
+
+      var tdCard = document.createElement('td');
+      tdCard.textContent = t.card || '---';
+      tr.appendChild(tdCard);
+
+      tbody.appendChild(tr);
+    });
+
+    $('txnDrillClose').onclick = function() {
+      panel.style.display = 'none';
+    };
   }
 
   // -- Merchants panel --
@@ -799,6 +859,50 @@
       var catAmt = card.top_category_amount ? ' (' + fmtMoney(card.top_category_amount) + ')' : '';
       topCat.textContent = 'Top: ' + catLabel + catAmt;
       block.appendChild(topCat);
+
+      // "View transactions" toggle
+      var toggleBtn = document.createElement('div');
+      toggleBtn.style.cssText = 'margin-top:8px;font-size:0.75rem;color:#3b82f6;cursor:pointer;';
+      toggleBtn.textContent = 'View transactions \u25BC';
+      toggleBtn.setAttribute('tabindex', '0');
+      block.appendChild(toggleBtn);
+
+      // Transaction list (hidden by default)
+      var txnList = document.createElement('div');
+      txnList.style.cssText = 'max-height:0;overflow:hidden;transition:max-height 0.3s;margin-top:6px;';
+
+      var cardTxns = card.transactions || [];
+      cardTxns.forEach(function(t) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;justify-content:space-between;padding:3px 0;font-size:0.75rem;border-bottom:1px solid #334155;';
+
+        var left = document.createElement('span');
+        left.style.color = '#94a3b8';
+        left.textContent = t.date + '  ' + (t.description || '---');
+        row.appendChild(left);
+
+        var right = document.createElement('span');
+        right.style.cssText = 'color:#22c55e;font-weight:600;flex-shrink:0;margin-left:8px;';
+        right.textContent = fmtMoney(t.amount);
+        row.appendChild(right);
+
+        txnList.appendChild(row);
+      });
+
+      block.appendChild(txnList);
+
+      (function(btn, list) {
+        var open = false;
+        function toggle() {
+          open = !open;
+          list.style.maxHeight = open ? (list.scrollHeight + 'px') : '0';
+          btn.textContent = open ? 'Hide transactions \u25B2' : 'View transactions \u25BC';
+        }
+        btn.addEventListener('click', toggle);
+        btn.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+        });
+      })(toggleBtn, txnList);
 
       grid.appendChild(block);
     });
