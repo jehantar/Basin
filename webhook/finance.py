@@ -93,16 +93,14 @@ def categorize_transaction(description: str | None, counterparty: str | None, te
 # --- Shared transaction fetching ---
 
 def _fetch_spend_transactions(session, start_date: date, end_date: date) -> list[dict]:
-    """Fetch posted spending transactions with categorization applied.
+    """Fetch posted transactions with categorization applied.
 
-    For Chase credit cards via Teller, charges are POSITIVE (you owe more)
-    and payments are NEGATIVE (reducing balance). So we filter amount > 0
-    for spending and exclude autopay/payment transactions.
+    Includes both charges (positive) and returns/refunds (negative)
+    so net spend is accurate. Only excludes card bill payments.
 
     Excludes:
     - Pending transactions (only posted/settled)
-    - Negative amounts (card payments reducing balance)
-    - Automatic payments / bill payments
+    - Automatic payments / bill payments (card payments, not real activity)
     """
     rows = session.execute(text("""
         SELECT t.amount, t.description, t.category, t.counterparty, t.date,
@@ -111,7 +109,6 @@ def _fetch_spend_transactions(session, start_date: date, end_date: date) -> list
         JOIN teller.accounts a ON t.account_id = a.id
         WHERE t.date BETWEEN :start AND :end
           AND t.status = 'posted'
-          AND t.amount > 0
         ORDER BY t.date
     """), {"start": start_date, "end": end_date}).fetchall()
 
@@ -125,7 +122,7 @@ def _fetch_spend_transactions(session, start_date: date, end_date: date) -> list
         card_name = r[5]
         last_four = r[6]
 
-        # Skip automatic payments (credit card bill payments)
+        # Skip card bill payments only
         desc_lower = description.lower()
         if "automatic payment" in desc_lower or "autopay" in desc_lower or "payment thank you" in desc_lower:
             continue
