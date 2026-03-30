@@ -4,302 +4,613 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Basin — Finance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0f172a;
-    color: #e2e8f0;
-    min-height: 100vh;
-    padding: 24px;
-  }
-  a { color: #3b82f6; }
 
-  /* Top navigation */
+  :root {
+    --base: #0a0f1a;
+    --surface: #141b2d;
+    --surface-hover: #1a2340;
+    --border: #1e293b;
+    --border-light: #2a3650;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent: #10b981;
+    --accent-glow: rgba(16, 185, 129, 0.15);
+    --alert: #ef4444;
+    --nav-active: #10b981;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--base);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .page-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 32px 48px;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+
+  /* ── Top Navigation ── */
   .top-nav {
-    display: flex; gap: 0; margin-bottom: 20px;
-    border-bottom: 2px solid #334155;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 32px;
+    background: linear-gradient(180deg, rgba(10,15,26,0.95) 0%, rgba(10,15,26,0.8) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
   }
   .nav-tab {
-    padding: 10px 24px; font-size: 0.9rem; font-weight: 600;
-    color: #64748b; text-decoration: none;
-    border-bottom: 3px solid transparent;
-    transition: all 0.2s; margin-bottom: -2px;
+    padding: 16px 28px;
+    font-family: var(--sans);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    transition: color 0.25s, border-color 0.25s;
   }
-  .nav-tab:hover { color: #94a3b8; }
-  .nav-tab.active { color: #f1f5f9; border-bottom-color: #3b82f6; }
+  .nav-tab:hover { color: var(--text-secondary); }
+  .nav-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .nav-tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--nav-active);
+  }
 
-  /* Header */
+  /* ── Header ── */
   .header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
+    align-items: baseline;
+    padding-top: 32px;
+    margin-bottom: 28px;
   }
   .header h1 {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #f1f5f9;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+  }
+  .header h1 span {
+    color: var(--accent);
   }
   .header .sync-info {
-    font-size: 0.85rem;
-    color: #64748b;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
   }
 
-  /* Cards grid */
-  .cards {
+  /* ── Summary Cards ── */
+  .summary-cards {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-    margin-bottom: 24px;
+    gap: 20px;
+    margin-bottom: 28px;
   }
-  .card {
-    background: #1e293b;
-    border-radius: 12px;
-    padding: 20px;
-    border: 2px solid transparent;
-    transition: border-color 0.2s;
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 28px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, transform 0.2s;
   }
-  .card:hover { border-color: #334155; }
+  .summary-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 16px 16px 0 0;
+    opacity: 0.8;
+  }
+  .summary-card:hover {
+    border-color: var(--border-light);
+    transform: translateY(-1px);
+  }
+  .summary-card.spend::before { background: var(--accent); }
+  .summary-card.category::before { background: #f59e0b; }
+  .summary-card.txn-count::before { background: #3b82f6; }
 
-  .card-label {
-    font-size: 0.8rem;
+  .sc-label {
+    font-size: 0.7rem;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 8px;
-    color: #64748b;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
   }
-  .card-label.spend { color: #22c55e; }
-  .card-label.category { color: #f59e0b; }
-  .card-label.transactions { color: #3b82f6; }
+  .summary-card.spend .sc-label { color: var(--accent); }
+  .summary-card.category .sc-label { color: #f59e0b; }
+  .summary-card.txn-count .sc-label { color: #3b82f6; }
 
-  .card-value {
-    font-size: 2rem;
+  .sc-value {
+    font-family: var(--mono);
+    font-size: 2.25rem;
     font-weight: 700;
-    color: #f1f5f9;
+    color: var(--text-primary);
     line-height: 1.1;
+    letter-spacing: -0.02em;
   }
-  .card-sub {
-    font-size: 0.85rem;
-    color: #94a3b8;
-    margin-top: 4px;
+  .sc-sub {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 6px;
   }
-
-  /* View tabs */
-  .view-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 20px;
-  }
-  .view-tab {
-    background: #334155;
-    color: #94a3b8;
-    border: 1px solid #475569;
-    border-radius: 6px;
-    padding: 6px 14px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-    outline: none;
-  }
-  .view-tab:hover { background: #475569; color: #e2e8f0; }
-  .view-tab:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
-  .view-tab.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
-
-  /* Detail panel */
-  .detail-panel {
-    background: #1e293b;
-    border-radius: 12px;
-    padding: 24px;
-    min-height: 400px;
+  .sc-sub .mono {
+    font-family: var(--mono);
+    font-size: 0.75rem;
   }
 
-  /* Filters */
-  .filters {
+  /* ── Filters Row ── */
+  .controls-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 20px;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 24px;
     flex-wrap: wrap;
   }
+  .view-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+  }
+  .view-tab {
+    font-family: var(--sans);
+    background: transparent;
+    color: var(--text-muted);
+    border: none;
+    border-radius: 7px;
+    padding: 8px 20px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    outline: none;
+    letter-spacing: 0.02em;
+  }
+  .view-tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.03); }
+  .view-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .view-tab.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(16,185,129,0.25);
+  }
+
+  .time-filters {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
   .preset-btn {
-    background: #334155;
-    color: #94a3b8;
-    border: 1px solid #475569;
+    font-family: var(--mono);
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 6px 14px;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
+    font-weight: 400;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: all 0.2s;
     outline: none;
+    letter-spacing: 0.02em;
   }
-  .preset-btn:hover { background: #475569; color: #e2e8f0; }
-  .preset-btn:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
-  .preset-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
-
+  .preset-btn:hover { color: var(--text-secondary); border-color: var(--border-light); }
+  .preset-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .preset-btn.active {
+    background: rgba(16,185,129,0.12);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .filters-sep {
+    color: var(--border-light);
+    margin: 0 4px;
+    font-size: 0.85rem;
+    user-select: none;
+  }
   .date-input {
-    background: #0f172a;
-    color: #e2e8f0;
-    border: 1px solid #475569;
+    font-family: var(--mono);
+    background: var(--base);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 6px 10px;
-    font-size: 0.85rem;
-    outline: none;
-  }
-  .date-input:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
-  .filters-sep { color: #475569; margin: 0 4px; }
-
-  /* Charts grid */
-  .charts-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
-  .chart-area { width: 100%; min-height: 320px; }
-
-  /* Merchants table */
-  .merchants-table-wrapper {
-    max-height: 600px;
-    overflow-y: auto;
-    border-radius: 8px;
-    border: 1px solid #334155;
-  }
-  .merchants-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.85rem;
-  }
-  .merchants-table thead { position: sticky; top: 0; z-index: 1; }
-  .merchants-table th {
-    text-align: left;
-    color: #64748b;
-    font-weight: 600;
-    padding: 8px 12px;
-    border-bottom: 1px solid #334155;
-    text-transform: uppercase;
     font-size: 0.75rem;
-    letter-spacing: 0.05em;
-    background: #1e293b;
+    outline: none;
+    transition: border-color 0.2s;
   }
-  .merchants-table td {
-    padding: 8px 12px;
-    color: #cbd5e1;
-    border-bottom: 1px solid #0f172a;
-  }
-  .merchants-table tr:hover td { background: #0f172a; }
-  .spend-value { color: #22c55e; font-weight: 600; }
+  .date-input:focus { border-color: var(--accent); }
 
-  /* Cards panel grid */
-  .cards-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-  .card-block {
-    background: #0f172a;
-    border-radius: 12px;
-    padding: 24px;
-    border: 2px solid #334155;
-  }
-  .card-block .cb-name {
-    font-size: 1rem;
-    font-weight: 700;
-    margin-bottom: 4px;
-  }
-  .card-block .cb-last4 {
-    font-size: 0.8rem;
-    color: #64748b;
-    margin-bottom: 16px;
-  }
-  .card-block .cb-spend {
-    font-size: 2rem;
-    font-weight: 700;
-    line-height: 1.1;
-    margin-bottom: 8px;
-  }
-  .card-block .cb-txns {
-    font-size: 0.85rem;
-    color: #94a3b8;
-    margin-bottom: 4px;
-  }
-  .card-block .cb-top-cat {
-    font-size: 0.8rem;
-    color: #64748b;
+  /* ── Detail Panel ── */
+  .detail-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    min-height: 440px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
 
-  .card-block.accent-blue   { border-color: #3b82f6; }
-  .card-block.accent-blue   .cb-name { color: #3b82f6; }
-  .card-block.accent-blue   .cb-spend { color: #22c55e; }
-
-  .card-block.accent-purple { border-color: #a78bfa; }
-  .card-block.accent-purple .cb-name { color: #a78bfa; }
-  .card-block.accent-purple .cb-spend { color: #22c55e; }
-
-  .card-block.accent-amber  { border-color: #f59e0b; }
-  .card-block.accent-amber  .cb-name { color: #f59e0b; }
-  .card-block.accent-amber  .cb-spend { color: #22c55e; }
-
-  .card-block.accent-green  { border-color: #22c55e; }
-  .card-block.accent-green  .cb-name { color: #22c55e; }
-  .card-block.accent-green  .cb-spend { color: #22c55e; }
-
-  /* Panels */
+  /* ── Panels ── */
   .panel { display: none; }
   .panel.active { display: block; }
 
-  /* Error banner */
+  /* ── Charts Grid ── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 24px;
+  }
+  .chart-container {
+    background: rgba(10,15,26,0.5);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    min-height: 340px;
+  }
+  .chart-area { width: 100%; min-height: 320px; }
+
+  /* ── Drill-down Table ── */
+  .drilldown-panel {
+    margin-top: 24px;
+    background: rgba(10,15,26,0.4);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    animation: slideDown 0.3s ease;
+  }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .drilldown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .drilldown-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+  }
+  .drilldown-title .cat-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .drilldown-close {
+    font-family: var(--sans);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 5px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transition: all 0.2s;
+  }
+  .drilldown-close:hover { background: rgba(255,255,255,0.08); color: var(--text-secondary); }
+  .drilldown-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* ── Data Tables ── */
+  .table-wrapper {
+    max-height: 520px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-light) transparent;
+  }
+  .table-wrapper::-webkit-scrollbar { width: 6px; }
+  .table-wrapper::-webkit-scrollbar-track { background: transparent; }
+  .table-wrapper::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+  .data-table thead { position: sticky; top: 0; z-index: 2; }
+  .data-table th {
+    text-align: left;
+    color: var(--text-muted);
+    font-weight: 600;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    background: var(--surface);
+  }
+  .data-table td {
+    padding: 10px 16px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(30,41,59,0.5);
+  }
+  .data-table tbody tr { transition: background 0.15s; }
+  .data-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  .data-table tbody tr:hover td { background: rgba(16,185,129,0.04); }
+
+  .td-money {
+    font-family: var(--mono);
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 0.8rem;
+  }
+  .td-rank {
+    font-family: var(--mono);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .td-count {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+  }
+
+  /* ── Cards Grid ── */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 20px;
+  }
+  .card-block {
+    background: rgba(10,15,26,0.5);
+    border-radius: 14px;
+    padding: 0;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .card-block:hover {
+    border-color: var(--border-light);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+  }
+  .card-block-inner {
+    padding: 24px 24px 20px;
+  }
+  .cb-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+  }
+  .cb-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+  }
+  .cb-last4 {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    background: rgba(255,255,255,0.04);
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.06em;
+  }
+  .cb-spend {
+    font-family: var(--mono);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.1;
+    margin-bottom: 12px;
+    letter-spacing: -0.02em;
+  }
+  .cb-meta {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 8px;
+  }
+  .cb-stat {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .cb-stat strong {
+    font-family: var(--mono);
+    color: var(--text-secondary);
+    font-weight: 700;
+    font-size: 0.72rem;
+  }
+  .cb-top-cat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+  .cb-cat-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .cb-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 10px;
+    background: rgba(255,255,255,0.02);
+    border: none;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .cb-toggle:hover { background: rgba(255,255,255,0.04); color: var(--text-secondary); }
+  .cb-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .cb-toggle-arrow {
+    display: inline-block;
+    transition: transform 0.3s;
+    font-size: 0.65rem;
+  }
+  .cb-toggle.open .cb-toggle-arrow {
+    transform: rotate(180deg);
+  }
+
+  .cb-txn-list {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease;
+    background: rgba(10,15,26,0.3);
+  }
+  .cb-txn-row {
+    display: grid;
+    grid-template-columns: 90px 1fr auto;
+    gap: 12px;
+    padding: 8px 24px;
+    font-size: 0.78rem;
+    border-bottom: 1px solid rgba(30,41,59,0.4);
+    transition: background 0.15s;
+  }
+  .cb-txn-row:hover { background: rgba(255,255,255,0.02); }
+  .cb-txn-date {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+  .cb-txn-desc { color: var(--text-secondary); }
+  .cb-txn-amt {
+    font-family: var(--mono);
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 0.75rem;
+    text-align: right;
+  }
+
+  /* ── Error Banner ── */
   .error-banner {
-    background: #451a2a;
-    border: 1px solid #991b1b;
-    border-radius: 8px;
-    padding: 12px 20px;
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.25);
+    border-radius: 10px;
+    padding: 14px 20px;
     margin-bottom: 20px;
     display: none;
     align-items: center;
     gap: 12px;
   }
   .error-banner.visible { display: flex; }
-  .error-banner .error-msg { flex: 1; color: #fca5a5; font-size: 0.9rem; }
-  .error-banner button {
-    background: #991b1b;
-    color: #fca5a5;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 14px;
-    cursor: pointer;
-    font-size: 0.85rem;
+  .error-banner .error-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--alert);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
   }
-  .error-banner button:hover { background: #b91c1c; }
+  .error-banner .error-msg {
+    flex: 1;
+    color: #fca5a5;
+    font-size: 0.82rem;
+  }
+  .error-banner .retry-btn {
+    font-family: var(--sans);
+    background: rgba(239,68,68,0.15);
+    color: #fca5a5;
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 6px;
+    padding: 6px 16px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .error-banner .retry-btn:hover { background: rgba(239,68,68,0.25); }
+  .error-banner .retry-btn:focus-visible { outline: 2px solid var(--alert); outline-offset: 1px; }
 
-  /* Empty state */
+  /* ── Empty State ── */
   .empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 60px 20px;
-    color: #64748b;
+    color: var(--text-muted);
     text-align: center;
   }
-  .empty-state p { margin-bottom: 16px; font-size: 1rem; }
-  .empty-state button {
-    background: #334155;
-    color: #e2e8f0;
-    border: 1px solid #475569;
-    border-radius: 6px;
-    padding: 8px 20px;
-    cursor: pointer;
-    font-size: 0.85rem;
+  .empty-state p {
+    margin-bottom: 16px;
+    font-size: 0.9rem;
   }
-  .empty-state button:hover { background: #475569; }
 
-  /* Responsive */
-  @media (max-width: 768px) {
-    .cards { grid-template-columns: 1fr; }
+  /* ── Loading Pulse ── */
+  .loading-text {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .page-container { padding: 0 16px 32px; }
+    .top-nav { padding: 0 16px; }
+    .summary-cards { grid-template-columns: 1fr; }
     .charts-grid { grid-template-columns: 1fr; }
     .cards-grid { grid-template-columns: 1fr; }
-    .filters { flex-direction: column; align-items: stretch; }
+    .controls-row { flex-direction: column; align-items: stretch; }
+    .time-filters { flex-wrap: wrap; justify-content: center; }
+    .view-tabs { justify-content: center; }
+    .detail-panel { padding: 16px; }
+    .sc-value { font-size: 1.8rem; }
+  }
+  @media (max-width: 500px) {
+    .nav-tab { padding: 12px 16px; font-size: 0.78rem; }
+    .header h1 { font-size: 1.3rem; }
   }
 </style>
 </head>
@@ -310,100 +621,115 @@
   <a href="/dashboard/finance" class="nav-tab active">Finance</a>
 </nav>
 
-<div class="header">
-  <h1>Basin &mdash; Finance</h1>
-  <span class="sync-info" id="syncInfo">Last sync: &mdash;</span>
-</div>
+<div class="page-container">
 
-<div class="error-banner" id="errorBanner">
-  <span class="error-msg" id="errorMsg"></span>
-  <button id="retryBtn" tabindex="0">Retry</button>
-</div>
-
-<div class="cards">
-  <div class="card">
-    <div class="card-label spend">Total Spend</div>
-    <div class="card-value" id="totalSpendValue">Loading...</div>
-    <div class="card-sub" id="totalSpendSub">&nbsp;</div>
-  </div>
-  <div class="card">
-    <div class="card-label category">Top Category</div>
-    <div class="card-value" id="topCategoryValue">Loading...</div>
-    <div class="card-sub" id="topCategorySub">&nbsp;</div>
-  </div>
-  <div class="card">
-    <div class="card-label transactions">Transactions</div>
-    <div class="card-value" id="transactionsValue">Loading...</div>
-    <div class="card-sub" id="transactionsSub">&nbsp;</div>
-  </div>
-</div>
-
-<div class="view-tabs">
-  <button class="view-tab active" data-view="spending" tabindex="0">Spending</button>
-  <button class="view-tab" data-view="merchants" tabindex="0">Merchants</button>
-  <button class="view-tab" data-view="cards" tabindex="0">Cards</button>
-</div>
-
-<div class="detail-panel">
-  <div class="filters">
-    <button class="preset-btn" data-months="3" tabindex="0">3M</button>
-    <button class="preset-btn" data-months="6" tabindex="0">6M</button>
-    <button class="preset-btn" data-months="12" tabindex="0">1Y</button>
-    <button class="preset-btn" data-months="0" tabindex="0">All</button>
-    <span class="filters-sep">|</span>
-    <input type="date" class="date-input" id="startDate" tabindex="0" aria-label="Start date">
-    <span class="filters-sep">&ndash;</span>
-    <input type="date" class="date-input" id="endDate" tabindex="0" aria-label="End date">
+  <div class="header">
+    <h1>Basin <span>/</span> Finance</h1>
+    <span class="sync-info" id="syncInfo">--:--</span>
   </div>
 
-  <div class="panel active" id="panelSpending">
-    <div class="charts-grid">
-      <div class="chart-area" id="chartMonthly"></div>
-      <div class="chart-area" id="chartCategory"></div>
+  <div class="error-banner" id="errorBanner">
+    <div class="error-icon">!</div>
+    <span class="error-msg" id="errorMsg"></span>
+    <button class="retry-btn" id="retryBtn" tabindex="0">Retry</button>
+  </div>
+
+  <div class="summary-cards">
+    <div class="summary-card spend">
+      <div class="sc-label">Total Spend</div>
+      <div class="sc-value loading-text" id="totalSpendValue">--</div>
+      <div class="sc-sub" id="totalSpendSub">&nbsp;</div>
     </div>
-    <div id="txnDrilldown" style="display:none;margin-top:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <span id="txnDrillTitle" style="font-size:0.85rem;color:#94a3b8;font-weight:600;"></span>
-        <button id="txnDrillClose" tabindex="0" style="background:#334155;border:none;color:#94a3b8;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:0.75rem;">Close</button>
+    <div class="summary-card category">
+      <div class="sc-label">Top Category</div>
+      <div class="sc-value loading-text" id="topCategoryValue">--</div>
+      <div class="sc-sub" id="topCategorySub">&nbsp;</div>
+    </div>
+    <div class="summary-card txn-count">
+      <div class="sc-label">Transactions</div>
+      <div class="sc-value loading-text" id="transactionsValue">--</div>
+      <div class="sc-sub" id="transactionsSub">&nbsp;</div>
+    </div>
+  </div>
+
+  <div class="controls-row">
+    <div class="view-tabs" role="tablist">
+      <button class="view-tab active" data-view="spending" tabindex="0" role="tab" aria-selected="true">Spending</button>
+      <button class="view-tab" data-view="merchants" tabindex="0" role="tab" aria-selected="false">Merchants</button>
+      <button class="view-tab" data-view="cards" tabindex="0" role="tab" aria-selected="false">Cards</button>
+    </div>
+    <div class="time-filters">
+      <button class="preset-btn" data-months="3" tabindex="0">3M</button>
+      <button class="preset-btn" data-months="6" tabindex="0">6M</button>
+      <button class="preset-btn" data-months="12" tabindex="0">1Y</button>
+      <button class="preset-btn" data-months="0" tabindex="0">All</button>
+      <span class="filters-sep">|</span>
+      <input type="date" class="date-input" id="startDate" tabindex="0" aria-label="Start date">
+      <span class="filters-sep">&ndash;</span>
+      <input type="date" class="date-input" id="endDate" tabindex="0" aria-label="End date">
+    </div>
+  </div>
+
+  <div class="detail-panel">
+    <!-- Spending Panel -->
+    <div class="panel active" id="panelSpending">
+      <div class="charts-grid">
+        <div class="chart-container">
+          <div class="chart-area" id="chartMonthly"></div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-area" id="chartCategory"></div>
+        </div>
       </div>
-      <div class="merchants-table-wrapper" style="max-height:300px;">
-        <table class="merchants-table" id="txnDrillTable">
-          <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Card</th></tr></thead>
-          <tbody id="txnDrillBody"></tbody>
+      <div id="txnDrilldown" style="display:none;">
+        <div class="drilldown-panel">
+          <div class="drilldown-header">
+            <span class="drilldown-title" id="txnDrillTitle"></span>
+            <button class="drilldown-close" id="txnDrillClose" tabindex="0">Close</button>
+          </div>
+          <div class="table-wrapper" style="max-height:320px;">
+            <table class="data-table" id="txnDrillTable">
+              <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Card</th></tr></thead>
+              <tbody id="txnDrillBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Merchants Panel -->
+    <div class="panel" id="panelMerchants">
+      <div class="table-wrapper">
+        <table class="data-table" id="merchantsTable">
+          <thead>
+            <tr>
+              <th style="width:60px">#</th>
+              <th>Merchant</th>
+              <th>Total Spend</th>
+              <th># Txns</th>
+              <th>Avg Txn</th>
+            </tr>
+          </thead>
+          <tbody id="merchantsBody"></tbody>
         </table>
       </div>
     </div>
-  </div>
 
-  <div class="panel" id="panelMerchants">
-    <div class="merchants-table-wrapper">
-      <table class="merchants-table" id="merchantsTable">
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Merchant</th>
-            <th>Total Spend</th>
-            <th># Transactions</th>
-            <th>Avg Transaction</th>
-          </tr>
-        </thead>
-        <tbody id="merchantsBody"></tbody>
-      </table>
+    <!-- Cards Panel -->
+    <div class="panel" id="panelCards">
+      <div class="cards-grid" id="cardsGrid"></div>
     </div>
   </div>
 
-  <div class="panel" id="panelCards">
-    <div class="cards-grid" id="cardsGrid"></div>
-  </div>
 </div>
 
 <script>
 (function() {
   'use strict';
 
-  // -- Category colors --
+  /* ── Category Color Map ── */
   var CATEGORY_COLORS = {
-    groceries: '#22c55e',
+    groceries: '#10b981',
     dining: '#f59e0b',
     transportation: '#3b82f6',
     shopping: '#a78bfa',
@@ -412,32 +738,34 @@
     health: '#14b8a6',
     fuel: '#f97316',
     utilities: '#6366f1',
-    other: '#64748b'
+    service: '#818cf8',
+    other: '#475569'
   };
 
-  var CARD_ACCENTS = ['accent-blue', 'accent-purple', 'accent-amber', 'accent-green'];
+  var CARD_ACCENT_COLORS = ['#3b82f6', '#a78bfa', '#f59e0b', '#10b981', '#ec4899', '#06b6d4'];
 
-  // -- State --
+  /* ── State ── */
   var activeView = 'spending';
   var overviewData = null;
   var merchantsData = null;
   var cardsData = null;
   var activePreset = null;
 
-  // -- DOM refs --
+  /* ── DOM helpers ── */
   function $(id) { return document.getElementById(id); }
-  var startInput  = $('startDate');
-  var endInput    = $('endDate');
-  var errorBanner = $('errorBanner');
-  var errorMsg    = $('errorMsg');
-  var retryBtn    = $('retryBtn');
-  var syncInfo    = $('syncInfo');
 
-  // -- Helpers --
   function clearChildren(el) {
-    while (el.firstChild) { el.removeChild(el.firstChild); }
+    while (el.firstChild) el.removeChild(el.firstChild);
   }
 
+  function createEl(tag, className, text) {
+    var el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined && text !== null) el.textContent = text;
+    return el;
+  }
+
+  /* ── Formatters ── */
   function fmtMoney(n) {
     if (n == null) return '$0.00';
     return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -473,6 +801,11 @@
     return CATEGORY_COLORS[key] || CATEGORY_COLORS.other;
   }
 
+  /* ── Error handling ── */
+  var errorBanner = $('errorBanner');
+  var errorMsg = $('errorMsg');
+  var retryBtn = $('retryBtn');
+
   function showError(msg) {
     errorMsg.textContent = msg;
     errorBanner.classList.add('visible');
@@ -482,52 +815,77 @@
     errorBanner.classList.remove('visible');
   }
 
-  // -- Plotly layout base --
+  /* ── DOM refs ── */
+  var startInput = $('startDate');
+  var endInput = $('endDate');
+  var syncInfo = $('syncInfo');
+
+  /* ── Plotly layout builder ── */
   function baseLayout(title, extra) {
     var layout = {
-      paper_bgcolor: '#1e293b',
-      plot_bgcolor: '#1e293b',
-      font: { color: '#94a3b8', family: 'system-ui, -apple-system, sans-serif' },
-      title: { text: title, font: { size: 16, color: '#e2e8f0' } },
+      paper_bgcolor: '#141b2d',
+      plot_bgcolor: '#141b2d',
+      font: { color: '#94a3b8', family: 'DM Sans, sans-serif' },
+      title: {
+        text: title,
+        font: { size: 14, color: '#e2e8f0', family: 'DM Sans, sans-serif' },
+        x: 0.02,
+        xanchor: 'left'
+      },
       xaxis: {
-        gridcolor: '#334155',
-        linecolor: '#334155',
-        tickfont: { color: '#94a3b8' }
+        gridcolor: '#1e293b',
+        linecolor: '#1e293b',
+        tickfont: { color: '#94a3b8', family: 'DM Sans, sans-serif', size: 11 },
+        zeroline: false
       },
       yaxis: {
-        gridcolor: '#334155',
-        linecolor: '#334155',
-        tickfont: { color: '#94a3b8' }
+        gridcolor: '#1e293b',
+        linecolor: '#1e293b',
+        tickfont: { color: '#94a3b8', family: 'Space Mono, monospace', size: 11 },
+        zeroline: false
       },
-      margin: { t: 50, b: 50, l: 70, r: 20 },
-      hovermode: 'closest'
+      margin: { t: 48, b: 44, l: 70, r: 16 },
+      hovermode: 'closest',
+      hoverlabel: {
+        bgcolor: '#1e293b',
+        bordercolor: '#2a3650',
+        font: { family: 'DM Sans, sans-serif', color: '#f1f5f9', size: 13 }
+      }
     };
     if (extra) {
       for (var k in extra) {
-        if (extra.hasOwnProperty(k)) { layout[k] = extra[k]; }
+        if (extra.hasOwnProperty(k)) layout[k] = extra[k];
       }
     }
     return layout;
   }
 
-  // -- View switching --
+  /* ── View Switching ── */
   var viewTabs = document.querySelectorAll('.view-tab');
+
   viewTabs.forEach(function(tab) {
     tab.addEventListener('click', function() {
       var view = tab.getAttribute('data-view');
       if (view === activeView) return;
       activeView = view;
-      viewTabs.forEach(function(t) { t.classList.remove('active'); });
+      viewTabs.forEach(function(t) {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
       tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
       document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
       var panelId = 'panel' + view.charAt(0).toUpperCase() + view.slice(1);
       var panel = $(panelId);
       if (panel) panel.classList.add('active');
       renderActivePanel();
     });
+    tab.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tab.click(); }
+    });
   });
 
-  // -- Time filters --
+  /* ── Time Filters ── */
   var presetBtns = document.querySelectorAll('.preset-btn');
 
   function setPreset(months) {
@@ -550,12 +908,15 @@
     btn.addEventListener('click', function() {
       setPreset(parseInt(btn.getAttribute('data-months'), 10));
     });
+    btn.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); btn.click(); }
+    });
   });
 
-  startInput.addEventListener('change', function() { activePreset = null; updatePresetHighlight(); loadAll(); });
-  endInput.addEventListener('change', function() { activePreset = null; updatePresetHighlight(); loadAll(); });
+  startInput.addEventListener('change', function() { activePreset = null; clearPresetHighlights(); loadAll(); });
+  endInput.addEventListener('change', function() { activePreset = null; clearPresetHighlights(); loadAll(); });
 
-  function updatePresetHighlight() {
+  function clearPresetHighlights() {
     presetBtns.forEach(function(b) { b.classList.remove('active'); });
   }
 
@@ -566,15 +927,26 @@
     return params ? '?' + params : '';
   }
 
-  // -- Data loading --
+  /* ── Data Loading ── */
   function loadAll() {
     hideError();
-    $('totalSpendValue').textContent = 'Loading...';
-    $('topCategoryValue').textContent = 'Loading...';
-    $('transactionsValue').textContent = 'Loading...';
+
+    // Set loading states
+    var spendVal = $('totalSpendValue');
+    var catVal = $('topCategoryValue');
+    var txnVal = $('transactionsValue');
+    spendVal.textContent = '--';
+    spendVal.classList.add('loading-text');
+    catVal.textContent = '--';
+    catVal.classList.add('loading-text');
+    txnVal.textContent = '--';
+    txnVal.classList.add('loading-text');
     $('totalSpendSub').textContent = '\u00a0';
     $('topCategorySub').textContent = '\u00a0';
     $('transactionsSub').textContent = '\u00a0';
+
+    // Hide drilldown on reload
+    $('txnDrilldown').style.display = 'none';
 
     var params = getDateParams();
 
@@ -605,9 +977,9 @@
   }
 
   function updateSyncInfo(ts) {
-    if (!ts) return;
+    if (!ts) { syncInfo.textContent = '--:--'; return; }
     var d = new Date(ts);
-    syncInfo.textContent = 'Last sync: ' + d.toLocaleString('en-US', {
+    syncInfo.textContent = d.toLocaleString('en-US', {
       month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
     });
   }
@@ -615,27 +987,47 @@
   function updateSummaryCards(summary) {
     if (!summary) return;
 
-    $('totalSpendValue').textContent = fmtMoney(summary.total_spend);
-    $('totalSpendSub').textContent = 'avg ' + fmtMoneyShort(summary.avg_monthly) + '/mo';
+    var spendVal = $('totalSpendValue');
+    var catVal = $('topCategoryValue');
+    var txnVal = $('transactionsValue');
 
-    $('topCategoryValue').textContent = capitalize(summary.biggest_category || '---');
-    $('topCategorySub').textContent = fmtMoney(summary.biggest_category_amount);
+    spendVal.classList.remove('loading-text');
+    catVal.classList.remove('loading-text');
+    txnVal.classList.remove('loading-text');
 
-    $('transactionsValue').textContent = fmtNumber(summary.transaction_count);
-    var uncatText = summary.uncategorized_count
-      ? summary.uncategorized_count + ' uncategorized'
-      : 'all categorized';
-    $('transactionsSub').textContent = uncatText;
+    spendVal.textContent = fmtMoney(summary.total_spend);
+    $('totalSpendSub').textContent = '';
+    var subSpend = $('totalSpendSub');
+    var avgSpan = createEl('span', 'mono', fmtMoneyShort(summary.avg_monthly));
+    subSpend.appendChild(document.createTextNode('avg '));
+    subSpend.appendChild(avgSpan);
+    subSpend.appendChild(document.createTextNode(' / mo'));
+
+    catVal.textContent = capitalize(summary.biggest_category || '---');
+    var subCat = $('topCategorySub');
+    clearChildren(subCat);
+    var catAmtSpan = createEl('span', 'mono', fmtMoney(summary.biggest_category_amount));
+    subCat.appendChild(catAmtSpan);
+
+    txnVal.textContent = fmtNumber(summary.transaction_count);
+    var subTxn = $('transactionsSub');
+    if (summary.uncategorized_count) {
+      subTxn.textContent = summary.uncategorized_count + ' uncategorized';
+      subTxn.style.color = '#ef4444';
+    } else {
+      subTxn.textContent = 'all categorized';
+      subTxn.style.color = '';
+    }
   }
 
-  // -- Panel rendering --
+  /* ── Panel Rendering ── */
   function renderActivePanel() {
     if (activeView === 'spending') renderSpending();
     else if (activeView === 'merchants') renderMerchants();
     else if (activeView === 'cards') renderCards();
   }
 
-  // -- Spending panel --
+  /* ── Spending Panel ── */
   function renderSpending() {
     if (!overviewData) return;
     renderMonthlyChart();
@@ -647,12 +1039,9 @@
     var monthly = overviewData.monthly_spend || [];
     if (monthly.length === 0) {
       clearChildren(el);
-      var emptyDiv = document.createElement('div');
-      emptyDiv.className = 'empty-state';
-      var p = document.createElement('p');
-      p.textContent = 'No spending data in selected range';
-      emptyDiv.appendChild(p);
-      el.appendChild(emptyDiv);
+      var empty = createEl('div', 'empty-state');
+      empty.appendChild(createEl('p', null, 'No spending data in selected range'));
+      el.appendChild(empty);
       return;
     }
 
@@ -663,21 +1052,28 @@
       x: months,
       y: totals,
       type: 'bar',
-      marker: { color: '#3b82f6', opacity: 0.9 },
-      hovertemplate: '%{x}<br>%{y:$,.2f}<extra></extra>'
+      marker: {
+        color: '#10b981',
+        opacity: 0.85,
+        line: { color: '#10b981', width: 0 }
+      },
+      hovertemplate: '<b>%{x}</b><br>%{y:$,.2f}<extra></extra>'
     }], baseLayout('Monthly Spend', {
       xaxis: {
-        gridcolor: '#334155',
-        linecolor: '#334155',
-        tickfont: { color: '#94a3b8' }
+        gridcolor: '#1e293b',
+        linecolor: '#1e293b',
+        tickfont: { color: '#94a3b8', family: 'DM Sans, sans-serif', size: 11 },
+        zeroline: false
       },
       yaxis: {
-        gridcolor: '#334155',
-        linecolor: '#334155',
-        tickfont: { color: '#94a3b8' },
+        gridcolor: '#1e293b',
+        linecolor: '#1e293b',
+        tickfont: { color: '#94a3b8', family: 'Space Mono, monospace', size: 11 },
         tickprefix: '$',
-        tickformat: ',.0f'
-      }
+        tickformat: ',.0f',
+        zeroline: false
+      },
+      bargap: 0.3
     }), { responsive: true, displayModeBar: false });
   }
 
@@ -686,12 +1082,9 @@
     var cats = overviewData.category_breakdown || [];
     if (cats.length === 0) {
       clearChildren(el);
-      var emptyDiv = document.createElement('div');
-      emptyDiv.className = 'empty-state';
-      var p = document.createElement('p');
-      p.textContent = 'No category data';
-      emptyDiv.appendChild(p);
-      el.appendChild(emptyDiv);
+      var empty = createEl('div', 'empty-state');
+      empty.appendChild(createEl('p', null, 'No category data'));
+      el.appendChild(empty);
       return;
     }
 
@@ -704,21 +1097,35 @@
       values: values,
       type: 'pie',
       hole: 0.4,
-      marker: { colors: colors },
+      marker: {
+        colors: colors,
+        line: { color: '#141b2d', width: 2 }
+      },
       textposition: 'outside',
       textinfo: 'label+percent',
-      textfont: { color: '#94a3b8', size: 11 },
-      hovertemplate: '%{label}<br>%{value:$,.2f}<br>%{percent}<extra></extra>'
+      textfont: { color: '#94a3b8', size: 11, family: 'DM Sans, sans-serif' },
+      hovertemplate: '<b>%{label}</b><br>%{value:$,.2f}<br>%{percent}<extra></extra>',
+      pull: 0.02
     }], {
-      paper_bgcolor: '#1e293b',
-      plot_bgcolor: '#1e293b',
-      font: { color: '#94a3b8', family: 'system-ui, -apple-system, sans-serif' },
-      title: { text: 'Category Breakdown', font: { size: 16, color: '#e2e8f0' } },
-      margin: { t: 50, b: 20, l: 20, r: 20 },
-      showlegend: false
+      paper_bgcolor: '#141b2d',
+      plot_bgcolor: '#141b2d',
+      font: { color: '#94a3b8', family: 'DM Sans, sans-serif' },
+      title: {
+        text: 'By Category',
+        font: { size: 14, color: '#e2e8f0', family: 'DM Sans, sans-serif' },
+        x: 0.02,
+        xanchor: 'left'
+      },
+      margin: { t: 48, b: 20, l: 20, r: 20 },
+      showlegend: false,
+      hoverlabel: {
+        bgcolor: '#1e293b',
+        bordercolor: '#2a3650',
+        font: { family: 'DM Sans, sans-serif', color: '#f1f5f9', size: 13 }
+      }
     }, { responsive: true, displayModeBar: false });
 
-    // Click on donut slice → show transactions for that category
+    // Click on donut slice -> drill into category transactions
     el.on('plotly_click', function(data) {
       if (!data.points || !data.points[0]) return;
       var catName = data.points[0].label.toLowerCase();
@@ -727,22 +1134,29 @@
   }
 
   function showCategoryDrilldown(category) {
-    var panel = $('txnDrilldown');
+    var wrapper = $('txnDrilldown');
     var title = $('txnDrillTitle');
     var tbody = $('txnDrillBody');
     clearChildren(tbody);
+    clearChildren(title);
 
     var txns = (overviewData.transactions || []).filter(function(t) {
       return t.category === category;
     });
 
-    title.textContent = capitalize(category) + ' — ' + txns.length + ' transactions';
-    panel.style.display = 'block';
+    // Build title with colored dot
+    var dot = createEl('span', 'cat-dot');
+    dot.style.backgroundColor = getCategoryColor(category);
+    title.appendChild(dot);
+    title.appendChild(document.createTextNode(capitalize(category) + ' \u2014 ' + txns.length + ' transactions'));
+
+    wrapper.style.display = 'block';
 
     txns.forEach(function(t) {
       var tr = document.createElement('tr');
 
       var tdDate = document.createElement('td');
+      tdDate.className = 'td-count';
       tdDate.textContent = t.date;
       tr.appendChild(tdDate);
 
@@ -751,7 +1165,7 @@
       tr.appendChild(tdDesc);
 
       var tdAmt = document.createElement('td');
-      tdAmt.className = 'spend-value';
+      tdAmt.className = 'td-money';
       tdAmt.textContent = fmtMoney(t.amount);
       tr.appendChild(tdAmt);
 
@@ -763,11 +1177,17 @@
     });
 
     $('txnDrillClose').onclick = function() {
-      panel.style.display = 'none';
+      wrapper.style.display = 'none';
     };
+    $('txnDrillClose').onkeydown = function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); wrapper.style.display = 'none'; }
+    };
+
+    // Scroll into view
+    wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  // -- Merchants panel --
+  /* ── Merchants Panel ── */
   function renderMerchants() {
     var body = $('merchantsBody');
     clearChildren(body);
@@ -777,7 +1197,7 @@
       var td = document.createElement('td');
       td.setAttribute('colspan', '5');
       td.style.textAlign = 'center';
-      td.style.padding = '40px 12px';
+      td.style.padding = '48px 16px';
       td.style.color = '#64748b';
       td.textContent = 'No merchant data in selected range';
       tr.appendChild(td);
@@ -790,23 +1210,27 @@
       var tr = document.createElement('tr');
 
       var tdRank = document.createElement('td');
+      tdRank.className = 'td-rank';
       tdRank.textContent = String(i + 1);
       tr.appendChild(tdRank);
 
       var tdName = document.createElement('td');
+      tdName.style.fontWeight = '500';
       tdName.textContent = m.name || '---';
       tr.appendChild(tdName);
 
       var tdSpend = document.createElement('td');
-      tdSpend.className = 'spend-value';
+      tdSpend.className = 'td-money';
       tdSpend.textContent = fmtMoney(m.total_spend);
       tr.appendChild(tdSpend);
 
       var tdCount = document.createElement('td');
+      tdCount.className = 'td-count';
       tdCount.textContent = fmtNumber(m.transaction_count);
       tr.appendChild(tdCount);
 
       var tdAvg = document.createElement('td');
+      tdAvg.className = 'td-count';
       tdAvg.textContent = fmtMoney(m.avg_transaction);
       tr.appendChild(tdAvg);
 
@@ -814,89 +1238,107 @@
     });
   }
 
-  // -- Cards panel --
+  /* ── Cards Panel ── */
   function renderCards() {
     var grid = $('cardsGrid');
     clearChildren(grid);
 
     if (!cardsData || !cardsData.cards || cardsData.cards.length === 0) {
-      var emptyDiv = document.createElement('div');
-      emptyDiv.className = 'empty-state';
-      var p = document.createElement('p');
-      p.textContent = 'No card data in selected range';
-      emptyDiv.appendChild(p);
-      grid.appendChild(emptyDiv);
+      var empty = createEl('div', 'empty-state');
+      empty.appendChild(createEl('p', null, 'No card data in selected range'));
+      grid.appendChild(empty);
       return;
     }
 
     cardsData.cards.forEach(function(card, i) {
-      var block = document.createElement('div');
-      block.className = 'card-block ' + CARD_ACCENTS[i % CARD_ACCENTS.length];
+      var accentColor = CARD_ACCENT_COLORS[i % CARD_ACCENT_COLORS.length];
 
-      var name = document.createElement('div');
-      name.className = 'cb-name';
-      name.textContent = card.name || 'Card';
-      block.appendChild(name);
+      var block = createEl('div', 'card-block');
+      block.style.borderColor = 'transparent';
 
-      var last4 = document.createElement('div');
-      last4.className = 'cb-last4';
-      last4.textContent = card.last_four ? 'ending in ' + card.last_four : '';
-      block.appendChild(last4);
+      var inner = createEl('div', 'card-block-inner');
 
-      var spend = document.createElement('div');
-      spend.className = 'cb-spend';
-      spend.textContent = fmtMoney(card.total_spend);
-      block.appendChild(spend);
+      // Header row: name + last 4
+      var header = createEl('div', 'cb-header');
+      var nameEl = createEl('div', 'cb-name', card.name || 'Card');
+      nameEl.style.color = accentColor;
+      header.appendChild(nameEl);
+      if (card.last_four) {
+        var l4 = createEl('span', 'cb-last4', '\u2022\u2022\u2022\u2022 ' + card.last_four);
+        header.appendChild(l4);
+      }
+      inner.appendChild(header);
 
-      var txns = document.createElement('div');
-      txns.className = 'cb-txns';
-      txns.textContent = fmtNumber(card.transaction_count) + ' transactions';
-      block.appendChild(txns);
+      // Spend
+      var spend = createEl('div', 'cb-spend', fmtMoney(card.total_spend));
+      inner.appendChild(spend);
 
-      var topCat = document.createElement('div');
-      topCat.className = 'cb-top-cat';
-      var catLabel = card.top_category ? capitalize(card.top_category) : '---';
-      var catAmt = card.top_category_amount ? ' (' + fmtMoney(card.top_category_amount) + ')' : '';
-      topCat.textContent = 'Top: ' + catLabel + catAmt;
-      block.appendChild(topCat);
+      // Meta row
+      var meta = createEl('div', 'cb-meta');
+      var txnStat = createEl('div', 'cb-stat');
+      txnStat.appendChild(createEl('strong', null, fmtNumber(card.transaction_count)));
+      txnStat.appendChild(document.createTextNode(' transactions'));
+      meta.appendChild(txnStat);
+      inner.appendChild(meta);
 
-      // "View transactions" toggle
-      var toggleBtn = document.createElement('div');
-      toggleBtn.style.cssText = 'margin-top:8px;font-size:0.75rem;color:#3b82f6;cursor:pointer;';
-      toggleBtn.textContent = 'View transactions \u25BC';
-      toggleBtn.setAttribute('tabindex', '0');
-      block.appendChild(toggleBtn);
+      // Top category
+      if (card.top_category) {
+        var topCat = createEl('div', 'cb-top-cat');
+        var catDot = createEl('span', 'cb-cat-dot');
+        catDot.style.backgroundColor = getCategoryColor(card.top_category);
+        topCat.appendChild(catDot);
+        var catLabel = capitalize(card.top_category);
+        var catAmt = card.top_category_amount ? ' \u2014 ' + fmtMoney(card.top_category_amount) : '';
+        topCat.appendChild(document.createTextNode(catLabel + catAmt));
+        inner.appendChild(topCat);
+      }
 
-      // Transaction list (hidden by default)
-      var txnList = document.createElement('div');
-      txnList.style.cssText = 'max-height:0;overflow:hidden;transition:max-height 0.3s;margin-top:6px;';
+      block.appendChild(inner);
 
+      // Transaction list (hidden)
+      var txnList = createEl('div', 'cb-txn-list');
       var cardTxns = card.transactions || [];
       cardTxns.forEach(function(t) {
-        var row = document.createElement('div');
-        row.style.cssText = 'display:flex;justify-content:space-between;padding:3px 0;font-size:0.75rem;border-bottom:1px solid #334155;';
-
-        var left = document.createElement('span');
-        left.style.color = '#94a3b8';
-        left.textContent = t.date + '  ' + (t.description || '---');
-        row.appendChild(left);
-
-        var right = document.createElement('span');
-        right.style.cssText = 'color:#22c55e;font-weight:600;flex-shrink:0;margin-left:8px;';
-        right.textContent = fmtMoney(t.amount);
-        row.appendChild(right);
-
+        var row = createEl('div', 'cb-txn-row');
+        row.appendChild(createEl('span', 'cb-txn-date', t.date));
+        row.appendChild(createEl('span', 'cb-txn-desc', t.description || '---'));
+        row.appendChild(createEl('span', 'cb-txn-amt', fmtMoney(t.amount)));
         txnList.appendChild(row);
       });
-
       block.appendChild(txnList);
 
+      // Toggle button
+      var toggleBtn = createEl('button', 'cb-toggle');
+      toggleBtn.setAttribute('tabindex', '0');
+      toggleBtn.setAttribute('aria-expanded', 'false');
+      toggleBtn.appendChild(document.createTextNode('View transactions '));
+      var arrow = createEl('span', 'cb-toggle-arrow', '\u25BC');
+      toggleBtn.appendChild(arrow);
+      block.appendChild(toggleBtn);
+
+      // Toggle logic
       (function(btn, list) {
         var open = false;
         function toggle() {
           open = !open;
-          list.style.maxHeight = open ? (list.scrollHeight + 'px') : '0';
-          btn.textContent = open ? 'Hide transactions \u25B2' : 'View transactions \u25BC';
+          if (open) {
+            list.style.maxHeight = list.scrollHeight + 'px';
+            btn.classList.add('open');
+            btn.setAttribute('aria-expanded', 'true');
+            // Update text
+            while (btn.firstChild) btn.removeChild(btn.firstChild);
+            btn.appendChild(document.createTextNode('Hide transactions '));
+            var a = createEl('span', 'cb-toggle-arrow', '\u25BC');
+            btn.appendChild(a);
+          } else {
+            list.style.maxHeight = '0';
+            btn.classList.remove('open');
+            btn.setAttribute('aria-expanded', 'false');
+            while (btn.firstChild) btn.removeChild(btn.firstChild);
+            btn.appendChild(document.createTextNode('View transactions '));
+            var a2 = createEl('span', 'cb-toggle-arrow', '\u25BC');
+            btn.appendChild(a2);
+          }
         }
         btn.addEventListener('click', toggle);
         btn.addEventListener('keydown', function(e) {
@@ -904,16 +1346,21 @@
         });
       })(toggleBtn, txnList);
 
+      // Hover border accent
+      block.addEventListener('mouseenter', function() { block.style.borderColor = accentColor + '40'; });
+      block.addEventListener('mouseleave', function() { block.style.borderColor = 'transparent'; });
+
       grid.appendChild(block);
     });
   }
 
-  // -- Retry --
-  retryBtn.addEventListener('click', function() {
-    loadAll();
+  /* ── Retry ── */
+  retryBtn.addEventListener('click', function() { loadAll(); });
+  retryBtn.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadAll(); }
   });
 
-  // -- Init --
+  /* ── Init ── */
   setPreset(6);
 
 })();
