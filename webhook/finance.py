@@ -1,11 +1,12 @@
 """Finance dashboard — API endpoints, categorization, and HTML serving."""
 
+import json
 import os
 import re
 from collections import defaultdict
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import text
 
@@ -90,6 +91,25 @@ _SORTED_RULES = sorted(MERCHANT_CATEGORIES.items(), key=lambda x: len(x[0]), rev
 
 _NORMALIZE_RE = re.compile(r'[^\w\s&]')
 
+# Manual overrides file — persists user-assigned categories
+OVERRIDES_PATH = os.environ.get("CATEGORY_OVERRIDES_PATH", "/data/category_overrides.json")
+
+
+def _load_overrides() -> dict:
+    """Load manual category overrides from JSON file."""
+    try:
+        with open(OVERRIDES_PATH) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _save_overrides(overrides: dict):
+    """Save manual category overrides to JSON file."""
+    os.makedirs(os.path.dirname(OVERRIDES_PATH), exist_ok=True)
+    with open(OVERRIDES_PATH, "w") as f:
+        json.dump(overrides, f, indent=2)
+
 
 def _normalize_merchant(text_val: str) -> str:
     """Lowercase, strip punctuation (keep &), collapse spaces."""
@@ -102,11 +122,22 @@ def categorize_transaction(description: str | None, counterparty: str | None, te
     """Determine effective category for a transaction.
 
     Precedence:
-    1. Keyword match on description/counterparty (longest match first)
-    2. Teller category if present and not generic
-    3. "other"
+    1. Manual override (exact match on normalized description/counterparty)
+    2. Keyword match on description/counterparty (longest match first)
+    3. Teller category if present and not generic
+    4. "other"
     """
-    # Check description and counterparty against keyword rules
+    overrides = _load_overrides()
+
+    # Check manual overrides first (exact normalized match)
+    for field in [description, counterparty]:
+        if not field:
+            continue
+        normalized = _normalize_merchant(field)
+        if normalized in overrides:
+            return overrides[normalized]
+
+    # Check keyword rules
     for field in [description, counterparty]:
         if not field:
             continue
@@ -209,6 +240,39 @@ def serve_finance():
     html_path = os.path.join(os.path.dirname(__file__), "finance.html")
     with open(html_path) as f:
         return HTMLResponse(f.read())
+
+
+@router.post("/api/finance/categorize")
+async def set_category_override(request: Request):
+    """Save a manual category override for a merchant."""
+    body = await request.json()
+    merchant = body.get("merchant", "")
+    raw_category = body.get("category", "")
+
+    if not merchant or not raw_category:
+        return {"error": "merchant and category required"}, 400
+
+    normalized = _normalize_merchant(merchant)
+    overrides = _load_overrides()
+    overrides[normalized] = raw_category
+    _save_overrides(overrides)
+
+    return {
+        "status": "saved",
+        "merchant": merchant,
+        "normalized": normalized,
+        "category": raw_category,
+        "display_category": display_category(raw_category),
+    }
+
+
+@router.get("/api/finance/categories")
+def get_available_categories():
+    """Return the list of available raw categories for the override UI."""
+    return {
+        "categories": sorted(set(DISPLAY_BUCKETS.keys()) - {"other", "service"}),
+        "display_buckets": {k: v for k, v in DISPLAY_BUCKETS.items() if k not in ("other", "service")},
+    }
 
 
 @router.get("/api/finance/overview")
