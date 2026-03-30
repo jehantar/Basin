@@ -688,7 +688,14 @@
     );
   }
 
-  var activeWorkoutTitle = null;
+  var activeWorkoutTitle = '__all__';
+  var TITLE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#a78bfa', '#ef4444', '#06b6d4'];
+
+  function getTitleColor(title) {
+    var titles = (strData && strData.workout_titles) || [];
+    var idx = titles.indexOf(title);
+    return TITLE_COLORS[idx >= 0 ? idx % TITLE_COLORS.length : 0];
+  }
 
   function renderStrengthPanel() {
     if (!strData || !strData.workouts || strData.workouts.length === 0) {
@@ -699,9 +706,9 @@
     var titles = strData.workout_titles || [];
     if (titles.length === 0) return;
 
-    // Default to first tab if current selection not in list
-    if (activeWorkoutTitle === null || titles.indexOf(activeWorkoutTitle) === -1) {
-      activeWorkoutTitle = titles[0];
+    // Default to All
+    if (activeWorkoutTitle !== '__all__' && titles.indexOf(activeWorkoutTitle) === -1) {
+      activeWorkoutTitle = '__all__';
     }
 
     // Count workouts per title
@@ -710,34 +717,42 @@
       titleCounts[w.title] = (titleCounts[w.title] || 0) + 1;
     });
 
-    // Build tabs
+    // Build tabs: "All" first, then per-type
     var tabContainer = $('workoutTabs');
     clearChildren(tabContainer);
-    titles.forEach(function(title) {
+
+    var allTabs = ['__all__'].concat(titles);
+    allTabs.forEach(function(title) {
       var tab = document.createElement('button');
-      tab.className = 'workout-tab' + (title === activeWorkoutTitle ? ' active' : '');
+      var isActive = title === activeWorkoutTitle;
+      tab.className = 'workout-tab' + (isActive ? ' active' : '');
       tab.setAttribute('role', 'tab');
       tab.setAttribute('tabindex', '0');
-      tab.setAttribute('aria-selected', title === activeWorkoutTitle ? 'true' : 'false');
+      tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
 
       var nameSpan = document.createElement('span');
-      nameSpan.textContent = title + ' ';
+      if (title === '__all__') {
+        nameSpan.textContent = 'All ';
+      } else {
+        nameSpan.textContent = title + ' ';
+      }
       tab.appendChild(nameSpan);
 
       var countSpan = document.createElement('span');
       countSpan.className = 'tab-count';
-      countSpan.textContent = '(' + (titleCounts[title] || 0) + ')';
+      var count = title === '__all__' ? strData.workouts.length : (titleCounts[title] || 0);
+      countSpan.textContent = '(' + count + ')';
       tab.appendChild(countSpan);
 
-      tab.addEventListener('click', function() {
+      function selectTab() {
         activeWorkoutTitle = title;
         renderStrengthPanel();
-      });
+      }
+      tab.addEventListener('click', selectTab);
       tab.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          activeWorkoutTitle = title;
-          renderStrengthPanel();
+          selectTab();
         }
       });
 
@@ -745,9 +760,14 @@
     });
 
     // Filter workouts by active title
-    var filtered = strData.workouts.filter(function(w) {
-      return w.title === activeWorkoutTitle;
-    });
+    var filtered;
+    if (activeWorkoutTitle === '__all__') {
+      filtered = strData.workouts;
+    } else {
+      filtered = strData.workouts.filter(function(w) {
+        return w.title === activeWorkoutTitle;
+      });
+    }
 
     renderStrengthContent(filtered);
   }
@@ -792,7 +812,12 @@
 
     // Sessions count
     trendSessEl.textContent = filtered.length;
-    trendSessSub.textContent = filtered.length === 1 ? 'session' : 'sessions';
+    var sessLabel = filtered.length === 1 ? 'session' : 'sessions';
+    if (activeWorkoutTitle === '__all__') {
+      var typeCount = (strData.workout_titles || []).length;
+      sessLabel += ' \u00b7 ' + typeCount + ' types';
+    }
+    trendSessSub.textContent = sessLabel;
 
     // Plotly volume bar chart
     var container = $('chartStrength');
@@ -804,6 +829,7 @@
 
       // Build hover text with volume, sets, and session-over-session delta %
       var hoverText = filtered.map(function(w, idx) {
+        var titleStr = activeWorkoutTitle === '__all__' ? w.title + '<br>' : '';
         var volStr = w.volume_lbs.toLocaleString() + ' lbs';
         var setStr = w.set_count + ' sets';
         var delta = '';
@@ -811,14 +837,22 @@
           var d = ((w.volume_lbs - filtered[idx - 1].volume_lbs) / filtered[idx - 1].volume_lbs * 100);
           delta = '<br>\u0394 ' + (d >= 0 ? '+' : '') + d.toFixed(1) + '%';
         }
-        return volStr + '<br>' + setStr + delta;
+        return titleStr + volStr + '<br>' + setStr + delta;
       });
+
+      // Color bars by workout type when showing all, solid green when filtered
+      var barColors;
+      if (activeWorkoutTitle === '__all__') {
+        barColors = filtered.map(function(w) { return getTitleColor(w.title); });
+      } else {
+        barColors = '#22c55e';
+      }
 
       Plotly.newPlot(container, [{
         x: dates,
         y: volumes,
         type: 'bar',
-        marker: { color: '#22c55e', opacity: 0.85 },
+        marker: { color: barColors, opacity: 0.85 },
         text: hoverText,
         hovertemplate: '%{x}<br>%{text}<extra></extra>'
       }], baseLayout('Volume per Session', 'Date', 'Volume (lbs)'), plotConfig);
