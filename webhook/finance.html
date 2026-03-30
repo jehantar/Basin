@@ -745,13 +745,13 @@
 
   /* ── Category Color Map ── */
   var CATEGORY_COLORS = {
-    'Food & Dining': '#10b981',
+    'Food & Dining': '#f59e0b',
     'Shopping': '#a78bfa',
-    'Travel & Transport': '#06b6d4',
-    'Health & Fitness': '#14b8a6',
-    'Living': '#6366f1',
-    'Entertainment': '#fb923c',
-    'Other': '#475569'
+    'Travel & Transport': '#3b82f6',
+    'Health & Fitness': '#10b981',
+    'Living': '#ec4899',
+    'Entertainment': '#f97316',
+    'Other': '#64748b'
   };
 
   var CARD_ACCENT_COLORS = ['#3b82f6', '#a78bfa', '#f59e0b', '#10b981', '#ec4899', '#06b6d4'];
@@ -1071,6 +1071,7 @@
       hovertemplate: '<b>%{x}</b><br>%{y:$,.2f}<extra></extra>'
     }], baseLayout('Monthly Spend', {
       xaxis: {
+        type: 'category',
         gridcolor: '#1e293b',
         linecolor: '#1e293b',
         tickfont: { color: '#94a3b8', family: 'DM Sans, sans-serif', size: 11 },
