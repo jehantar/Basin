@@ -213,18 +213,24 @@
     background: #1e293b; border-radius: 12px; padding: 14px 18px;
     margin-bottom: 16px; border: 1px solid #334155;
   }
-  .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   .calendar-title { font-size: 0.8rem; color: #94a3b8; font-weight: 600; }
   .calendar-stat { font-size: 0.75rem; color: #64748b; }
+  .calendar-body { display: flex; gap: 0; }
+  .calendar-day-labels {
+    display: flex; flex-direction: column; gap: 3px; padding-right: 6px;
+    font-size: 0.6rem; color: #475569;
+  }
+  .calendar-day-labels span { height: 14px; line-height: 14px; }
+  .calendar-months { display: flex; font-size: 0.6rem; color: #475569; margin-bottom: 4px; padding-left: 28px; }
+  .calendar-months span { text-align: left; }
   .calendar-grid { display: flex; gap: 3px; overflow-x: auto; }
   .cal-week { display: flex; flex-direction: column; gap: 3px; }
   .cal-day {
-    width: 14px; height: 14px; border-radius: 3px; background: #0f172a;
+    width: 14px; height: 14px; border-radius: 3px; background: #0f172a; border: 1px solid #1e293b;
   }
-  .cal-day.level-1 { background: #064e3b; }
-  .cal-day.level-2 { background: #059669; }
-  .cal-day.level-3 { background: #22c55e; }
-  .calendar-legend { display: flex; gap: 12px; margin-top: 8px; font-size: 0.65rem; color: #475569; }
+  .cal-day.active { background: #22c55e; border-color: #22c55e; }
+  .calendar-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 0.65rem; color: #475569; }
   .legend-item { display: flex; align-items: center; gap: 4px; }
   .legend-box { width: 10px; height: 10px; border-radius: 2px; }
 
@@ -323,12 +329,22 @@
     <span class="calendar-title">Training Activity</span>
     <span class="calendar-stat" id="calendarStat"></span>
   </div>
-  <div class="calendar-grid" id="calendarGrid"></div>
+  <div class="calendar-months" id="calendarMonths"></div>
+  <div class="calendar-body">
+    <div class="calendar-day-labels">
+      <span></span>
+      <span>Mon</span>
+      <span></span>
+      <span>Wed</span>
+      <span></span>
+      <span>Fri</span>
+      <span></span>
+    </div>
+    <div class="calendar-grid" id="calendarGrid"></div>
+  </div>
   <div class="calendar-legend">
     <div class="legend-item"><div class="legend-box" style="background:#0f172a;border:1px solid #334155;"></div> Rest</div>
-    <div class="legend-item"><div class="legend-box" style="background:#064e3b;"></div> 1 session</div>
-    <div class="legend-item"><div class="legend-box" style="background:#059669;"></div> 2 sessions</div>
-    <div class="legend-item"><div class="legend-box" style="background:#22c55e;"></div> 3+</div>
+    <div class="legend-item"><div class="legend-box" style="background:#22c55e;"></div> Trained</div>
   </div>
 </div>
 
@@ -1027,24 +1043,29 @@
   // -- Calendar heatmap --
   function renderCalendar(calData) {
     var grid = $('calendarGrid');
+    var monthsEl = $('calendarMonths');
     var stat = $('calendarStat');
     clearChildren(grid);
+    clearChildren(monthsEl);
 
     if (!calData || !calData.days) return;
 
-    // Build a date -> count lookup
     var dayMap = {};
     var totalDays = 0;
     calData.days.forEach(function(d) {
-      dayMap[d.date] = d.count;
+      dayMap[d.date] = true;
       totalDays++;
     });
 
-    stat.textContent = totalDays + ' training days in range';
-
-    // Build weeks grid: go from range start to end, fill in squares
+    var totalInRange = 0;
     var startDate = new Date(calData.range_start + 'T00:00:00');
     var endDate = new Date(calData.range_end + 'T00:00:00');
+
+    // Count total days in range for percentage
+    var tmp = new Date(startDate);
+    while (tmp <= endDate) { totalInRange++; tmp.setDate(tmp.getDate() + 1); }
+    var pct = totalInRange > 0 ? Math.round(totalDays / totalInRange * 100) : 0;
+    stat.textContent = totalDays + ' days trained (' + pct + '%)';
 
     // Align start to Monday
     var dayOfWeek = startDate.getDay();
@@ -1052,9 +1073,24 @@
     var cursor = new Date(startDate);
     cursor.setDate(cursor.getDate() + alignOffset);
 
+    var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var lastMonth = -1;
+    var weekCount = 0;
+
     while (cursor <= endDate) {
       var week = document.createElement('div');
       week.className = 'cal-week';
+
+      // Track month label for first day of this week
+      var weekStart = new Date(cursor);
+      if (weekStart.getMonth() !== lastMonth && weekStart >= startDate) {
+        var monthSpan = document.createElement('span');
+        monthSpan.textContent = MONTHS[weekStart.getMonth()];
+        monthSpan.style.width = '17px';
+        monthSpan.style.position = 'absolute';
+        // Position will be handled by flex gap
+        lastMonth = weekStart.getMonth();
+      }
 
       for (var d = 0; d < 7; d++) {
         var cell = document.createElement('div');
@@ -1062,12 +1098,11 @@
         var dateStr = cursor.toISOString().split('T')[0];
 
         if (cursor >= startDate && cursor <= endDate) {
-          var count = dayMap[dateStr] || 0;
-          if (count >= 3) cell.className += ' level-3';
-          else if (count === 2) cell.className += ' level-2';
-          else if (count === 1) cell.className += ' level-1';
-
-          cell.title = dateStr + ': ' + (count > 0 ? count + ' session' + (count > 1 ? 's' : '') : 'rest');
+          if (dayMap[dateStr]) {
+            cell.className += ' active';
+          }
+          var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+          cell.title = dayNames[cursor.getDay()] + ' ' + dateStr + (dayMap[dateStr] ? ' - Trained' : ' - Rest');
         }
 
         week.appendChild(cell);
@@ -1075,7 +1110,36 @@
       }
 
       grid.appendChild(week);
+      weekCount++;
     }
+
+    // Build month labels positioned above the grid
+    var cursor2 = new Date(startDate);
+    cursor2.setDate(cursor2.getDate() + alignOffset);
+    var prevMonth = -1;
+    var weekIdx = 0;
+    var monthPositions = [];
+
+    while (cursor2 <= endDate) {
+      var m = cursor2.getMonth();
+      if (m !== prevMonth && cursor2 >= startDate) {
+        monthPositions.push({ month: MONTHS[m], week: weekIdx });
+        prevMonth = m;
+      }
+      cursor2.setDate(cursor2.getDate() + 7);
+      weekIdx++;
+    }
+
+    // Render month labels with appropriate spacing
+    var lastWeekPos = 0;
+    monthPositions.forEach(function(mp) {
+      var span = document.createElement('span');
+      span.textContent = mp.month;
+      var gapWeeks = mp.week - lastWeekPos;
+      span.style.width = (gapWeeks * 17) + 'px'; // 14px cell + 3px gap
+      monthsEl.appendChild(span);
+      lastWeekPos = mp.week;
+    });
   }
 
   // -- Panel switching --
