@@ -93,12 +93,16 @@ def categorize_transaction(description: str | None, counterparty: str | None, te
 # --- Shared transaction fetching ---
 
 def _fetch_spend_transactions(session, start_date: date, end_date: date) -> list[dict]:
-    """Fetch posted spending transactions (negative amounts) with categorization applied.
+    """Fetch posted spending transactions with categorization applied.
+
+    For Chase credit cards via Teller, charges are POSITIVE (you owe more)
+    and payments are NEGATIVE (reducing balance). So we filter amount > 0
+    for spending and exclude autopay/payment transactions.
 
     Excludes:
     - Pending transactions (only posted/settled)
-    - Credits/refunds (positive amounts)
-    - Automatic payments (card payments, not real spending)
+    - Negative amounts (card payments reducing balance)
+    - Automatic payments / bill payments
     """
     rows = session.execute(text("""
         SELECT t.amount, t.description, t.category, t.counterparty, t.date,
@@ -107,13 +111,13 @@ def _fetch_spend_transactions(session, start_date: date, end_date: date) -> list
         JOIN teller.accounts a ON t.account_id = a.id
         WHERE t.date BETWEEN :start AND :end
           AND t.status = 'posted'
-          AND t.amount < 0
+          AND t.amount > 0
         ORDER BY t.date
     """), {"start": start_date, "end": end_date}).fetchall()
 
     transactions = []
     for r in rows:
-        amount = abs(float(r[0]))
+        amount = float(r[0])
         description = r[1] or ""
         teller_cat = r[2]
         counterparty = r[3]
@@ -225,13 +229,18 @@ def get_finance_merchants(start: str | None = None, end: str | None = None):
         transactions = _fetch_spend_transactions(session, start_date, end_date)
 
     # Aggregate by merchant (use counterparty if available, else description)
-    merchant_agg = defaultdict(lambda: {"total": 0.0, "count": 0})
+    merchant_agg = defaultdict(lambda: {"total": 0.0, "count": 0, "transactions": []})
     for t in transactions:
         name = t["counterparty"] or t["description"] or "Unknown"
-        # Basic normalization: strip extra whitespace, title case
         name = " ".join(name.split()).strip()
         merchant_agg[name]["total"] += t["amount"]
         merchant_agg[name]["count"] += 1
+        merchant_agg[name]["transactions"].append({
+            "date": t["date"],
+            "description": t["description"],
+            "amount": t["amount"],
+            "card": t["card_name"],
+        })
 
     merchants = sorted(
         [
@@ -240,12 +249,13 @@ def get_finance_merchants(start: str | None = None, end: str | None = None):
                 "total_spend": round(v["total"], 2),
                 "transaction_count": v["count"],
                 "avg_transaction": round(v["total"] / v["count"], 2) if v["count"] > 0 else 0,
+                "transactions": sorted(v["transactions"], key=lambda x: x["date"], reverse=True),
             }
             for k, v in merchant_agg.items()
         ],
         key=lambda x: x["total_spend"],
         reverse=True,
-    )[:25]  # Top 25
+    )[:25]
 
     return {
         **_response_metadata(start_date, end_date),
