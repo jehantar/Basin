@@ -115,7 +115,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
                    round((w.duration_sec / 60.0)::numeric, 1) as duration_min,
                    round(avg(speed.value)::numeric, 2) as avg_speed,
                    round(avg(power.value)::numeric, 0) as avg_power,
-                   round(sum(DISTINCT steps.value)::numeric, 0) as total_steps
+                   w.start_time, w.end_time
             FROM healthkit.workouts w
             LEFT JOIN healthkit.metrics speed
               ON speed.metric_type = 'running_speed'
@@ -123,24 +123,33 @@ def get_running_data(start: str | None = None, end: str | None = None):
             LEFT JOIN healthkit.metrics power
               ON power.metric_type = 'running_power'
               AND power.recorded_at BETWEEN w.start_time AND w.end_time
-            LEFT JOIN healthkit.metrics steps
-              ON steps.metric_type = 'step_count'
-              AND steps.recorded_at BETWEEN w.start_time AND w.end_time
             WHERE w.workout_type = 'Running'
               AND (w.start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
-            GROUP BY w.id, w.start_time, w.duration_sec
+            GROUP BY w.id, w.start_time, w.end_time, w.duration_sec
             ORDER BY w.start_time
         """), {"start": start_date, "end": end_date}).fetchall()
 
+        # Get step counts per workout separately (avoids expensive 3-way JOIN)
+        step_rows = session.execute(text("""
+            SELECT w.id, sum(m.value) as total_steps
+            FROM healthkit.workouts w
+            JOIN healthkit.metrics m ON m.metric_type = 'step_count'
+              AND m.recorded_at BETWEEN w.start_time AND w.end_time
+            WHERE w.workout_type = 'Running'
+              AND (w.start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+            GROUP BY w.id
+        """), {"start": start_date, "end": end_date}).fetchall()
+        steps_by_id = {r[0]: float(r[1]) for r in step_rows}
+
         runs = []
         for row in rows:
+            w_id = row[0]
             d = str(row[1])
             duration_min = float(row[2]) if row[2] else None
             speed = float(row[3]) if row[3] else None
             avg_power = float(row[4]) if row[4] else None
             distance_mi = round(speed * (duration_min / 60.0), 2) if speed and duration_min else None
-            # Cadence: steps per minute (derived from total steps / duration)
-            total_steps = float(row[5]) if row[5] else None
+            total_steps = steps_by_id.get(w_id)
             cadence = round(total_steps / duration_min) if total_steps and duration_min and duration_min > 0 else None
 
             runs.append({
