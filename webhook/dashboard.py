@@ -68,6 +68,40 @@ def serve_dashboard():
         return HTMLResponse(f.read())
 
 
+@router.get("/api/fitness/calendar")
+def get_calendar_data(start: str | None = None, end: str | None = None):
+    """Training calendar: workout counts per day from all sources."""
+    start_date, end_date = _parse_date_range(start, end)
+
+    with get_session() as session:
+        rows = session.execute(text("""
+            SELECT date, array_agg(DISTINCT source ORDER BY source) as types, count(DISTINCT source) as count
+            FROM (
+                SELECT (started_at AT TIME ZONE 'UTC')::date as date, 'strength' as source
+                FROM hevy.workouts
+                WHERE (started_at AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+                UNION ALL
+                SELECT (start_time AT TIME ZONE 'UTC')::date as date,
+                       CASE WHEN workout_type IN ('Strength Training', 'Functional Strength') THEN 'strength'
+                            WHEN workout_type = 'Running' THEN 'running'
+                            ELSE 'other'
+                       END as source
+                FROM healthkit.workouts
+                WHERE (start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+            ) combined
+            GROUP BY date
+            ORDER BY date
+        """), {"start": start_date, "end": end_date}).fetchall()
+
+        days = [{
+            "date": str(r[0]),
+            "types": list(r[1]),
+            "count": r[2],
+        } for r in rows]
+
+    return {**_response_metadata(start_date, end_date), "days": days}
+
+
 @router.get("/api/fitness/running")
 def get_running_data(start: str | None = None, end: str | None = None):
     start_date, end_date = _parse_date_range(start, end)

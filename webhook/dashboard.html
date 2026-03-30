@@ -208,6 +208,26 @@
   }
   .error-banner button:hover { background: #b91c1c; }
 
+  /* Calendar heatmap */
+  .calendar-strip {
+    background: #1e293b; border-radius: 12px; padding: 14px 18px;
+    margin-bottom: 16px; border: 1px solid #334155;
+  }
+  .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .calendar-title { font-size: 0.8rem; color: #94a3b8; font-weight: 600; }
+  .calendar-stat { font-size: 0.75rem; color: #64748b; }
+  .calendar-grid { display: flex; gap: 3px; overflow-x: auto; }
+  .cal-week { display: flex; flex-direction: column; gap: 3px; }
+  .cal-day {
+    width: 14px; height: 14px; border-radius: 3px; background: #0f172a;
+  }
+  .cal-day.level-1 { background: #064e3b; }
+  .cal-day.level-2 { background: #059669; }
+  .cal-day.level-3 { background: #22c55e; }
+  .calendar-legend { display: flex; gap: 12px; margin-top: 8px; font-size: 0.65rem; color: #475569; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-box { width: 10px; height: 10px; border-radius: 2px; }
+
   /* Strength tabs */
   .workout-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
   .workout-tab {
@@ -295,6 +315,20 @@
     <div class="card-sub" id="strengthSub">&nbsp;</div>
     <div class="card-trend" id="strengthTrend">&nbsp;</div>
     <div class="sparkline" id="sparkStrength"></div>
+  </div>
+</div>
+
+<div class="calendar-strip" id="calendarStrip">
+  <div class="calendar-header">
+    <span class="calendar-title">Training Activity</span>
+    <span class="calendar-stat" id="calendarStat"></span>
+  </div>
+  <div class="calendar-grid" id="calendarGrid"></div>
+  <div class="calendar-legend">
+    <div class="legend-item"><div class="legend-box" style="background:#0f172a;border:1px solid #334155;"></div> Rest</div>
+    <div class="legend-item"><div class="legend-box" style="background:#064e3b;"></div> 1 session</div>
+    <div class="legend-item"><div class="legend-box" style="background:#059669;"></div> 2 sessions</div>
+    <div class="legend-item"><div class="legend-box" style="background:#22c55e;"></div> 3+</div>
   </div>
 </div>
 
@@ -985,6 +1019,60 @@
     });
   }
 
+  // -- Calendar heatmap --
+  function renderCalendar(calData) {
+    var grid = $('calendarGrid');
+    var stat = $('calendarStat');
+    clearChildren(grid);
+
+    if (!calData || !calData.days) return;
+
+    // Build a date -> count lookup
+    var dayMap = {};
+    var totalDays = 0;
+    calData.days.forEach(function(d) {
+      dayMap[d.date] = d.count;
+      totalDays++;
+    });
+
+    stat.textContent = totalDays + ' training days in range';
+
+    // Build weeks grid: go from range start to end, fill in squares
+    var startDate = new Date(calData.range_start + 'T00:00:00');
+    var endDate = new Date(calData.range_end + 'T00:00:00');
+
+    // Align start to Monday
+    var dayOfWeek = startDate.getDay();
+    var alignOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    var cursor = new Date(startDate);
+    cursor.setDate(cursor.getDate() + alignOffset);
+
+    while (cursor <= endDate) {
+      var week = document.createElement('div');
+      week.className = 'cal-week';
+
+      for (var d = 0; d < 7; d++) {
+        var cell = document.createElement('div');
+        cell.className = 'cal-day';
+        var dateStr = cursor.toISOString().split('T')[0];
+
+        if (cursor >= startDate && cursor <= endDate) {
+          var count = dayMap[dateStr] || 0;
+          if (count >= 3) cell.className += ' level-3';
+          else if (count === 2) cell.className += ' level-2';
+          else if (count === 1) cell.className += ' level-1';
+
+          cell.title = dateStr + ': ' + (count > 0 ? count + ' session' + (count > 1 ? 's' : '') : 'rest');
+        }
+
+        week.appendChild(cell);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      grid.appendChild(week);
+    }
+  }
+
   // -- Panel switching --
   function switchPanel(name) {
     activePanel = name;
@@ -1027,10 +1115,12 @@
       fetch('/api/fitness/running' + qs).then(function(r) { if (!r.ok) throw new Error('Running API error: ' + r.status); return r.json(); }),
       fetch('/api/fitness/vo2max' + qs).then(function(r) { if (!r.ok) throw new Error('VO2 Max API error: ' + r.status); return r.json(); }),
       fetch('/api/fitness/strength' + qs).then(function(r) { if (!r.ok) throw new Error('Strength API error: ' + r.status); return r.json(); }),
+      fetch('/api/fitness/calendar' + qs).then(function(r) { if (!r.ok) throw new Error('Calendar API error: ' + r.status); return r.json(); }),
     ]).then(function(results) {
       runData = results[0];
       vo2Data = results[1];
       strData = results[2];
+      var calData = results[3];
 
       if (runData.generated_at) {
         var gen = new Date(runData.generated_at);
@@ -1041,6 +1131,7 @@
       updateRunningCard();
       updateVo2maxCard();
       updateStrengthCard();
+      renderCalendar(calData);
       switchPanel(activePanel);
 
     }).catch(function(err) {
