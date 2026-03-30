@@ -55,6 +55,8 @@ def session(engine):
 def client(session, monkeypatch):
     from fastapi.testclient import TestClient
     monkeypatch.setattr("webhook.server.get_session", lambda: _FakeCtx(session))
+    monkeypatch.setattr("webhook.dashboard.get_session", lambda: _FakeCtx(session))
+    monkeypatch.setattr("webhook.finance.get_session", lambda: _FakeCtx(session))
     from webhook.server import app
     return TestClient(app)
 
