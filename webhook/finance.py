@@ -244,26 +244,41 @@ def serve_finance():
 
 @router.post("/api/finance/categorize")
 async def set_category_override(request: Request):
-    """Save a manual category override for a merchant."""
+    """Save manual category overrides for one or more merchants.
+
+    Accepts either:
+      {"merchant": "...", "category": "..."}           — single override
+      {"overrides": [{"merchant": "...", "category": "..."}, ...]}  — batch
+    """
     body = await request.json()
-    merchant = body.get("merchant", "")
-    raw_category = body.get("category", "")
 
-    if not merchant or not raw_category:
-        return {"error": "merchant and category required"}, 400
+    # Normalize to a list of overrides
+    if "overrides" in body:
+        items = body["overrides"]
+    else:
+        items = [body]
 
-    normalized = _normalize_merchant(merchant)
     overrides = _load_overrides()
-    overrides[normalized] = raw_category
-    _save_overrides(overrides)
+    results = []
 
-    return {
-        "status": "saved",
-        "merchant": merchant,
-        "normalized": normalized,
-        "category": raw_category,
-        "display_category": display_category(raw_category),
-    }
+    for item in items:
+        merchant = item.get("merchant", "")
+        raw_category = item.get("category", "")
+        if not merchant or not raw_category:
+            continue
+        normalized = _normalize_merchant(merchant)
+        overrides[normalized] = raw_category
+        results.append({
+            "merchant": merchant,
+            "normalized": normalized,
+            "category": raw_category,
+            "display_category": display_category(raw_category),
+        })
+
+    if results:
+        _save_overrides(overrides)
+
+    return {"status": "saved", "count": len(results), "results": results}
 
 
 @router.get("/api/finance/categories")

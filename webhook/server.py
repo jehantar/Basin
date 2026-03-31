@@ -24,6 +24,9 @@ app.include_router(dashboard_router)
 from webhook.finance import router as finance_router
 app.include_router(finance_router)
 
+from webhook.ops import router as ops_router
+app.include_router(ops_router)
+
 @app.get("/dashboard")
 def dashboard_redirect():
     return RedirectResponse(url="/dashboard/fitness", status_code=307)

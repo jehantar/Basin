@@ -332,6 +332,27 @@
   .drilldown-close:hover { background: rgba(255,255,255,0.08); color: var(--text-secondary); }
   .drilldown-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+  .batch-save-btn {
+    font-family: var(--sans);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 6px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(16,185,129,0.25);
+  }
+  .batch-save-btn:hover { background: #0d9668; }
+  .batch-save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .batch-save-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
   /* ── Data Tables ── */
   .table-wrapper {
     max-height: 520px;
@@ -623,6 +644,7 @@
 <nav class="top-nav">
   <a href="/dashboard/fitness" class="nav-tab">Fitness</a>
   <a href="/dashboard/finance" class="nav-tab active">Finance</a>
+  <a href="/dashboard/system" class="nav-tab">System</a>
 </nav>
 
 <div class="page-container">
@@ -690,7 +712,10 @@
         <div class="drilldown-panel">
           <div class="drilldown-header">
             <span class="drilldown-title" id="txnDrillTitle"></span>
-            <button class="drilldown-close" id="txnDrillClose" tabindex="0">Close</button>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button class="batch-save-btn" id="batchSaveBtn" tabindex="0" style="display:none;">Save</button>
+              <button class="drilldown-close" id="txnDrillClose" tabindex="0">Close</button>
+            </div>
           </div>
           <div class="table-wrapper" style="max-height:320px;">
             <table class="data-table" id="txnDrillTable">
@@ -1117,6 +1142,8 @@
       return '<b>' + capitalize(c.category) + '</b><br>' + fmtMoney(c.total) + '<br>' + c.count + ' transactions';
     });
 
+    var totalSpend = values.reduce(function(a, b) { return a + b; }, 0);
+
     Plotly.newPlot(el, [{
       labels: labels,
       values: values,
@@ -1127,9 +1154,9 @@
         line: { color: '#141b2d', width: 2 }
       },
       textposition: 'inside',
-      textinfo: 'label+percent',
+      textinfo: 'percent',
       insidetextorientation: 'horizontal',
-      textfont: { color: '#f1f5f9', size: 11, family: 'DM Sans, sans-serif' },
+      textfont: { color: '#f1f5f9', size: 13, family: 'Space Mono, monospace' },
       hovertext: hoverText,
       hoverinfo: 'text',
       sort: false
@@ -1143,6 +1170,13 @@
         x: 0.02,
         xanchor: 'left'
       },
+      annotations: [{
+        text: fmtMoney(totalSpend),
+        x: 0.5,
+        y: 0.5,
+        font: { size: 18, color: '#f1f5f9', family: 'Space Mono, monospace' },
+        showarrow: false
+      }],
       margin: { t: 48, b: 10, l: 10, r: 10 },
       showlegend: true,
       legend: {
@@ -1167,12 +1201,54 @@
     });
   }
 
+  /* ── Batch categorization state ── */
+  var pendingOverrides = {};  // { normalized_merchant: { merchant, category } }
+
+  function updateSaveButton() {
+    var btn = $('batchSaveBtn');
+    var count = Object.keys(pendingOverrides).length;
+    if (count === 0) {
+      btn.style.display = 'none';
+      return;
+    }
+    btn.style.display = 'inline-flex';
+    btn.disabled = false;
+    btn.textContent = 'Save ' + count + ' change' + (count > 1 ? 's' : '');
+  }
+
+  function saveBatchOverrides() {
+    var items = Object.keys(pendingOverrides).map(function(k) { return pendingOverrides[k]; });
+    if (items.length === 0) return;
+    var btn = $('batchSaveBtn');
+    btn.textContent = 'Saving...';
+    btn.disabled = true;
+
+    fetch('/api/finance/categorize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ overrides: items })
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.status === 'saved') {
+        pendingOverrides = {};
+        updateSaveButton();
+        loadAll();
+      }
+    }).catch(function() {
+      btn.textContent = 'Error — retry';
+      btn.disabled = false;
+    });
+  }
+
   function showCategoryDrilldown(category) {
     var wrapper = $('txnDrilldown');
     var title = $('txnDrillTitle');
     var tbody = $('txnDrillBody');
     clearChildren(tbody);
     clearChildren(title);
+
+    // Reset pending overrides for each drilldown open
+    pendingOverrides = {};
+    updateSaveButton();
 
     var txns = (overviewData.transactions || []).filter(function(t) {
       return t.category === category;
@@ -1226,22 +1302,20 @@
           select.appendChild(opt);
         });
 
-        (function(merchant, sel) {
+        (function(merchant, sel, row) {
           sel.addEventListener('change', function() {
-            if (!sel.value) return;
-            fetch('/api/finance/categorize', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ merchant: merchant, category: sel.value })
-            }).then(function(r) { return r.json(); }).then(function(data) {
-              if (data.status === 'saved') {
-                sel.style.borderColor = '#10b981';
-                sel.disabled = true;
-                setTimeout(function() { loadAll(); }, 500);
-              }
-            });
+            if (!sel.value) {
+              delete pendingOverrides[merchant];
+              sel.style.borderColor = '#334155';
+              row.style.background = '';
+            } else {
+              pendingOverrides[merchant] = { merchant: merchant, category: sel.value };
+              sel.style.borderColor = '#10b981';
+              row.style.background = 'rgba(16,185,129,0.06)';
+            }
+            updateSaveButton();
           });
-        })(t.description, select);
+        })(t.description, select, tr);
 
         tdAction.appendChild(select);
       }
@@ -1252,9 +1326,11 @@
 
     $('txnDrillClose').onclick = function() {
       wrapper.style.display = 'none';
+      pendingOverrides = {};
+      updateSaveButton();
     };
     $('txnDrillClose').onkeydown = function(e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); wrapper.style.display = 'none'; }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('txnDrillClose').onclick(); }
     };
 
     // Scroll into view
@@ -1500,6 +1576,8 @@
   }
 
   /* ── Retry ── */
+  $('batchSaveBtn').addEventListener('click', saveBatchOverrides);
+
   retryBtn.addEventListener('click', function() { loadAll(); });
   retryBtn.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadAll(); }

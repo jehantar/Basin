@@ -58,6 +58,8 @@ services:
         condition: service_healthy
     ports:
       - "${WEBHOOK_BIND:-8075}:8000"
+    volumes:
+      - ./data:/data
     networks:
       - basin
     environment:
