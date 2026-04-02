@@ -11,7 +11,6 @@ def _seed_collector_runs(session):
     runs = [
         ("healthkit", now - timedelta(hours=2), now - timedelta(hours=2, seconds=-12), "success", 142),
         ("hevy", now - timedelta(hours=18), now - timedelta(hours=18, seconds=-8), "success", 86),
-        ("schwab", now - timedelta(hours=3), now - timedelta(hours=3, seconds=-12), "success", 23),
         ("teller", now - timedelta(hours=17), now - timedelta(hours=17, seconds=-10), "success", 204),
     ]
     for collector, started, finished, status, rows in runs:
@@ -36,7 +35,6 @@ def test_health_summary(session, monkeypatch):
     assert result.exit_code == 0
     assert "healthkit" in result.output
     assert "hevy" in result.output
-    assert "schwab" in result.output
     assert "teller" in result.output
     assert "success" in result.output
 
@@ -48,11 +46,11 @@ def test_health_detail(session, monkeypatch):
     monkeypatch.setattr("cli.health.get_session", lambda: _FakeCtx(session))
 
     runner = CliRunner()
-    result = runner.invoke(cli, ["--detail", "schwab"])
+    result = runner.invoke(cli, ["--detail", "teller"])
 
     assert result.exit_code == 0
-    assert "schwab" in result.output
-    assert "23" in result.output
+    assert "teller" in result.output
+    assert "204" in result.output
 
 
 class _FakeCtx:

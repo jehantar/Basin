@@ -39,9 +39,6 @@ services:
       - basin
     environment:
       DATABASE_URL: postgresql://basin:${BASIN_PG_PASSWORD}@postgres:5432/basin
-      SCHWAB_CLIENT_ID: ${SCHWAB_CLIENT_ID}
-      SCHWAB_CLIENT_SECRET: ${SCHWAB_CLIENT_SECRET}
-      SCHWAB_REDIRECT_URI: ${SCHWAB_REDIRECT_URI}
       TELLER_ACCESS_TOKEN: ${TELLER_ACCESS_TOKEN}
       TELLER_CERT_PATH: /certs/teller/certificate.pem
       TELLER_KEY_PATH: /certs/teller/private_key.pem
@@ -64,9 +61,6 @@ services:
       - basin
     environment:
       DATABASE_URL: postgresql://basin:${BASIN_PG_PASSWORD}@postgres:5432/basin
-      SCHWAB_CLIENT_ID: ${SCHWAB_CLIENT_ID}
-      SCHWAB_CLIENT_SECRET: ${SCHWAB_CLIENT_SECRET}
-      SCHWAB_REDIRECT_URI: ${SCHWAB_REDIRECT_URI}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
     healthcheck:

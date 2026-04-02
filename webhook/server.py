@@ -1,13 +1,9 @@
-"""FastAPI webhook server — HealthKit data receiver + Schwab OAuth callback."""
+"""FastAPI webhook server — HealthKit data receiver."""
 
-import base64
 import json
 import logging
 import os
-from datetime import datetime, timezone, timedelta
-from urllib.parse import urlencode
-
-import httpx
+from datetime import datetime, timezone
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
@@ -176,73 +172,3 @@ def _save_failed_payload(payload: dict, error: str):
     logger.info(f"Saved failed payload to {path}")
 
 
-@app.get("/schwab/auth")
-def schwab_auth_redirect():
-    """Redirect user to Schwab's OAuth authorization page."""
-    config = _get_schwab_config()
-    params = urlencode({
-        "client_id": config["client_id"],
-        "redirect_uri": config["redirect_uri"],
-    })
-    return RedirectResponse(
-        url=f"https://api.schwabapi.com/v1/oauth/authorize?{params}",
-        status_code=307,
-    )
-
-
-@app.get("/schwab/callback")
-def schwab_callback(code: str):
-    """Exchange authorization code for access and refresh tokens."""
-    config = _get_schwab_config()
-
-    credentials = base64.b64encode(
-        f"{config['client_id']}:{config['client_secret']}".encode()
-    ).decode()
-
-    resp = httpx.post(
-        "https://api.schwabapi.com/v1/oauth/token",
-        headers={
-            "Authorization": f"Basic {credentials}",
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        data={
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": config["redirect_uri"],
-        },
-        timeout=10,
-    )
-    resp.raise_for_status()
-    tokens = resp.json()
-
-    now = datetime.now(timezone.utc)
-    with get_session() as session:
-        session.execute(
-            text("""
-                INSERT INTO schwab.tokens (id, access_token, refresh_token, access_expires, refresh_expires, updated_at)
-                VALUES (1, :access, :refresh, :access_exp, :refresh_exp, :now)
-                ON CONFLICT (id) DO UPDATE SET
-                    access_token = EXCLUDED.access_token,
-                    refresh_token = EXCLUDED.refresh_token,
-                    access_expires = EXCLUDED.access_expires,
-                    refresh_expires = EXCLUDED.refresh_expires,
-                    updated_at = EXCLUDED.updated_at
-            """),
-            {
-                "access": tokens["access_token"],
-                "refresh": tokens["refresh_token"],
-                "access_exp": now + timedelta(seconds=tokens.get("expires_in", 1800)),
-                "refresh_exp": now + timedelta(days=7),
-                "now": now,
-            },
-        )
-
-    return {"message": "Schwab tokens stored successfully"}
-
-
-def _get_schwab_config() -> dict:
-    return {
-        "client_id": os.environ.get("SCHWAB_CLIENT_ID", ""),
-        "client_secret": os.environ.get("SCHWAB_CLIENT_SECRET", ""),
-        "redirect_uri": os.environ.get("SCHWAB_REDIRECT_URI", ""),
-    }

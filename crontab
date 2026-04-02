@@ -8,14 +8,8 @@
 # HealthKit XML — check import folder daily at 6:05 AM UTC
 5 6 * * * set -a; . /etc/basin.env; set +a; cd /app && python -m collectors.healthkit >> /var/log/basin/healthkit.log 2>&1
 
-# Schwab — daily at 9:00 PM UTC (after US market close 4 PM ET)
-0 21 * * * set -a; . /etc/basin.env; set +a; cd /app && python -m collectors.schwab >> /var/log/basin/schwab.log 2>&1
-
 # Teller — daily at 7:00 AM UTC
 0 7 * * * set -a; . /etc/basin.env; set +a; cd /app && python -m collectors.teller >> /var/log/basin/teller.log 2>&1
-
-# Schwab token watchdog — every 6 hours
-0 */6 * * * set -a; . /etc/basin.env; set +a; cd /app && python -m collectors.schwab --check-token >> /var/log/basin/schwab.log 2>&1
 
 # Daily Postgres backup at 2:00 AM UTC
 0 2 * * * set -a; . /etc/basin.env; set +a; /app/scripts/backup.sh >> /var/log/basin/backup.log 2>&1

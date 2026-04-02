@@ -10,7 +10,7 @@ from shared.db import get_session
 
 logger = logging.getLogger("basin.cli")
 
-COLLECTORS = ["healthkit", "hevy", "schwab", "teller"]
+COLLECTORS = ["healthkit", "hevy", "teller"]
 
 
 def _time_ago(dt: datetime) -> str:
@@ -61,19 +61,6 @@ def _show_summary(session):
         else:
             click.echo(f"{name:<14}{'never':<15}{'-':<10}{'-':<8}")
 
-    # Schwab token status
-    token_row = session.execute(
-        text("SELECT refresh_expires FROM schwab.tokens WHERE id = 1")
-    ).fetchone()
-
-    click.echo()
-    if token_row:
-        remaining = token_row[0] - datetime.now(timezone.utc)
-        days = remaining.days
-        hours = int((remaining.total_seconds() % 86400) / 3600)
-        click.echo(f"Schwab refresh token expires in {days}d {hours}h")
-    else:
-        click.echo("Schwab: no tokens stored (OAuth not completed)")
     click.echo()
 
 

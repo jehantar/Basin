@@ -11,7 +11,6 @@ Local Machine                          VM (Docker)
 | Hevy CSV        |                    |   HealthKit  XML parser   |
 +-----------------+                    |   Hevy       CSV parser   |
                                        |   Teller     Bank API     |
-                                       |   Schwab     Brokerage API|
                                        +---------------------------+
                                        | Webhook (FastAPI)         |
                                        |   /dashboard/fitness      |
@@ -29,7 +28,6 @@ Local Machine                          VM (Docker)
 | HealthKit | Apple Health XML export | Daily 6:05 AM UTC | Metrics (VO2max, weight, HR, body fat) + workouts |
 | Hevy | CSV drop folder | Daily 6:00 AM UTC | Strength training: exercises, sets, weight/reps |
 | Teller | Bank API (mTLS) | Daily 7:00 AM UTC | Accounts, balances, transactions |
-| Schwab | Brokerage API (OAuth2) | Daily 9:00 PM UTC | Positions, transactions; token refresh every 6h |
 
 ## Dashboards
 
@@ -113,7 +111,6 @@ pytest
 |--------|--------|---------|
 | `healthkit` | `metrics`, `workouts` | Apple Health fitness data |
 | `hevy` | `exercises`, `workouts`, `sets` | Strength training |
-| `schwab` | `accounts`, `positions`, `transactions`, `tokens` | Brokerage |
 | `teller` | `institutions`, `accounts`, `balances`, `transactions` | Banking |
 | `basin` | `collector_runs`, `hevy_imports` | System tracking |
 

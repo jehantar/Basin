@@ -28,7 +28,6 @@ def engine():
         conn.execute(text("""
             DROP SCHEMA IF EXISTS healthkit CASCADE;
             DROP SCHEMA IF EXISTS hevy CASCADE;
-            DROP SCHEMA IF EXISTS schwab CASCADE;
             DROP SCHEMA IF EXISTS teller CASCADE;
             DROP SCHEMA IF EXISTS basin CASCADE;
         """))
