@@ -6,11 +6,17 @@
 #   ./scripts/sync-health.sh hevy               # sync hevy only
 set -euo pipefail
 
-VM="root@reservebot"
+VM="root@Basin"
 BASIN="/opt/basin"
 EXPORT_DIR="$HOME/Desktop/Basin Exports"
 
 sync_health() {
+    # Auto-unzip if export.zip exists but export.xml doesn't
+    if [ -f "$EXPORT_DIR/export.zip" ] && [ ! -f "$EXPORT_DIR/export.xml" ] && [ ! -f "$EXPORT_DIR/apple_health_export/export.xml" ]; then
+        echo "Found export.zip — unzipping..."
+        unzip -o "$EXPORT_DIR/export.zip" -d "$EXPORT_DIR"
+    fi
+
     # Look for export.xml directly in the folder, or inside a subfolder
     local xml=""
     if [ -f "$EXPORT_DIR/export.xml" ]; then
@@ -25,8 +31,7 @@ sync_health() {
         echo "Steps:"
         echo "  1. iPhone: Health > Profile pic > Export All Health Data"
         echo "  2. AirDrop or save the zip to ~/Desktop/Basin Exports/"
-        echo "  3. Unzip it there"
-        echo "  4. Run this script again"
+        echo "  3. Run this script again (zip is auto-extracted)"
         return 1
     fi
     echo "Found: $xml"

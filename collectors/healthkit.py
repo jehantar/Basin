@@ -5,6 +5,8 @@ import os
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
+from sqlalchemy import text
+
 from collectors.base import BaseCollector
 from shared.db import bulk_upsert
 
@@ -76,6 +78,19 @@ class HealthKitCollector(BaseCollector):
             logger.info("No XML files found in import directory")
             return 0
 
+        # Query latest timestamps to only process new data
+        self._metrics_cutoff = session.execute(
+            text("SELECT MAX(recorded_at) FROM healthkit.metrics")
+        ).scalar()
+        self._workouts_cutoff = session.execute(
+            text("SELECT MAX(start_time) FROM healthkit.workouts")
+        ).scalar()
+
+        if self._metrics_cutoff:
+            logger.info(f"Skipping metrics on or before {self._metrics_cutoff}")
+        if self._workouts_cutoff:
+            logger.info(f"Skipping workouts on or before {self._workouts_cutoff}")
+
         total = 0
         for xml_path in xml_files:
             logger.info(f"Processing {xml_path}")
@@ -123,11 +138,14 @@ class HealthKitCollector(BaseCollector):
             return None
 
         try:
+            recorded_at = _parse_date(elem.get("startDate"))
+            if self._metrics_cutoff and recorded_at <= self._metrics_cutoff:
+                return None
             return {
                 "metric_type": metric_type,
                 "value": float(elem.get("value", 0)),
                 "unit": elem.get("unit", ""),
-                "recorded_at": _parse_date(elem.get("startDate")).isoformat(),
+                "recorded_at": recorded_at.isoformat(),
                 "source_name": elem.get("sourceName"),
             }
         except (ValueError, TypeError):
@@ -139,6 +157,8 @@ class HealthKitCollector(BaseCollector):
 
         try:
             start = _parse_date(elem.get("startDate"))
+            if self._workouts_cutoff and start <= self._workouts_cutoff:
+                return None
             end = _parse_date(elem.get("endDate"))
         except (ValueError, TypeError):
             return None

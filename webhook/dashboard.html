@@ -556,8 +556,8 @@
   </div>
 
   <div class="cards">
-    <div class="card running-card" id="cardRunning" tabindex="0" role="button" aria-label="Weekly Mileage">
-      <div class="card-label running">Weekly Mileage</div>
+    <div class="card running-card" id="cardRunning" tabindex="0" role="button" aria-label="Mileage">
+      <div class="card-label running">Mileage</div>
       <div class="card-value" id="runningValue">--</div>
       <div class="card-sub" id="runningSub">&nbsp;</div>
       <div class="card-trend" id="runningTrend">&nbsp;</div>
@@ -920,7 +920,7 @@
       marker: { color: '#3b82f6', opacity: 0.85 },
       text: hoverText,
       hovertemplate: 'Week of %{x}<br>%{y:.1f} mi<br>%{text}<extra></extra>'
-    }], baseLayout('Weekly Mileage', 'Week', 'Miles'), plotConfig);
+    }], baseLayout('Mileage', 'Week', 'Miles'), plotConfig);
 
     clearChildren(tbody);
     var recent = runs.slice().reverse();
