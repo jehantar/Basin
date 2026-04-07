@@ -186,6 +186,12 @@ def _ingest_workouts(session, workouts: list) -> int:
         cadence = w.get("stepCadence", {})
         avg_cadence = cadence.get("qty") if cadence else None
 
+        # Extract elevation gain, convert to meters
+        elev = w.get("elevationUp", {})
+        elevation_m = elev.get("qty")
+        if elev.get("units") == "ft" and elevation_m is not None:
+            elevation_m = elevation_m * 0.3048
+
         rows.append({
             "workout_type": workout_type,
             "start_time": start.isoformat(),
@@ -196,6 +202,7 @@ def _ingest_workouts(session, workouts: list) -> int:
             "avg_hr": avg_hr,
             "max_hr": max_hr,
             "avg_cadence": avg_cadence,
+            "elevation_m": elevation_m,
             "source_name": "Health Auto Export",
         })
 

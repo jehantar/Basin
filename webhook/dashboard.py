@@ -63,7 +63,8 @@ def get_running_data(start: str | None = None, end: str | None = None):
                    round((w.duration_sec / 60.0)::numeric, 1) as duration_min,
                    round(avg(speed.value)::numeric, 2) as avg_speed,
                    round(avg(power.value)::numeric, 0) as avg_power,
-                   w.start_time, w.end_time
+                   w.start_time, w.end_time,
+                   w.elevation_m
             FROM healthkit.workouts w
             LEFT JOIN healthkit.metrics speed
               ON speed.metric_type = 'running_speed'
@@ -96,6 +97,8 @@ def get_running_data(start: str | None = None, end: str | None = None):
             duration_min = float(row[2]) if row[2] else None
             speed = float(row[3]) if row[3] else None
             avg_power = float(row[4]) if row[4] else None
+            elevation_m = float(row[7]) if row[7] else None
+            elevation_ft = round(elevation_m / 0.3048) if elevation_m else None
             distance_mi = round(speed * (duration_min / 60.0), 2) if speed and duration_min else None
             # Cadence = speed (m/min) / stride (m) = steps per minute
             stride_m = stride_by_id.get(w_id)
@@ -111,6 +114,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
                 "distance_mi": distance_mi,
                 "avg_power": avg_power,
                 "cadence_spm": cadence,
+                "elevation_ft": elevation_ft,
             })
 
         total_runs = len(runs)

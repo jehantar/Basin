@@ -629,6 +629,7 @@
               <th>Duration</th>
               <th>Cadence</th>
               <th>Avg Power</th>
+              <th>Elevation</th>
             </tr>
           </thead>
           <tbody id="runsBody"></tbody>
@@ -954,6 +955,10 @@
       var tdPower = document.createElement('td');
       tdPower.textContent = r.avg_power != null ? r.avg_power + ' W' : '---';
       tr.appendChild(tdPower);
+
+      var tdElev = document.createElement('td');
+      tdElev.textContent = r.elevation_ft != null ? r.elevation_ft + ' ft' : '---';
+      tr.appendChild(tdElev);
 
       tbody.appendChild(tr);
     });
