@@ -28,6 +28,42 @@ def dashboard_redirect():
     return RedirectResponse(url="/dashboard/fitness", status_code=307)
 
 HEALTHKIT_FAILED_DIR = "/data/healthkit/failed"
+HEALTHKIT_WEBHOOK_KEY = os.environ.get("HEALTHKIT_WEBHOOK_KEY")
+
+# Health Auto Export sends title-case names; map to DB snake_case names.
+HAE_METRIC_MAP = {
+    "Heart Rate": "heart_rate",
+    "Resting Heart Rate": "resting_heart_rate",
+    "Heart Rate Variability": "heart_rate_variability",
+    "Walking Heart Rate Average": "walking_heart_rate",
+    "Respiratory Rate": "respiratory_rate",
+    "VO2 Max": "vo2max",
+    "Step Count": "step_count",
+    "Walking + Running Distance": "walking_running_distance",
+    "Flights Climbed": "flights_climbed",
+    "Active Energy Burned": "active_energy",
+    "Basal Energy Burned": "basal_energy",
+    "Apple Exercise Time": "exercise_time",
+    "Apple Stand Time": "stand_time",
+    "Body Mass": "weight_body_mass",
+    "Body Fat Percentage": "body_fat_percentage",
+    "Running Speed": "running_speed",
+    "Running Power": "running_power",
+    "Running Stride Length": "running_stride_length",
+    "Running Ground Contact Time": "running_ground_contact_time",
+    "Running Vertical Oscillation": "running_vertical_oscillation",
+    "Walking Speed": "walking_speed",
+    "Walking Step Length": "walking_step_length",
+    "Walking Double Support Percentage": "walking_double_support_pct",
+    "Walking Asymmetry Percentage": "walking_asymmetry_pct",
+}
+
+# Normalize HAE workout names to match existing DB values.
+HAE_WORKOUT_MAP = {
+    "Traditional Strength Training": "Strength Training",
+    "Functional Strength Training": "Functional Strength",
+    "High Intensity Interval Training": "HIIT",
+}
 
 
 @app.get("/health")
@@ -38,6 +74,11 @@ def health_check():
 @app.post("/healthkit/webhook")
 async def healthkit_webhook(request: Request):
     """Receive HealthKit data from Health Auto Export app."""
+    if HEALTHKIT_WEBHOOK_KEY:
+        api_key = request.headers.get("X-API-Key", "")
+        if api_key != HEALTHKIT_WEBHOOK_KEY:
+            return JSONResponse(status_code=401, content={"error": "invalid api key"})
+
     body = await request.json()
     data = body.get("data", {})
 
@@ -75,12 +116,14 @@ def _ingest_metrics(session, metrics: list) -> int:
     """Parse and upsert health metrics."""
     rows = []
     for metric in metrics:
-        metric_name = metric.get("name", "")
+        raw_name = metric.get("name", "")
+        metric_name = HAE_METRIC_MAP.get(raw_name, raw_name)
+        if raw_name and raw_name not in HAE_METRIC_MAP:
+            logger.warning(f"Unmapped HAE metric: {raw_name!r}")
         unit = metric.get("units", "")
         for point in metric.get("data", []):
-            # Handle standard qty field
+            # Handle standard qty field, then fall back to Avg (heart rate)
             value = point.get("qty")
-            # Handle heart_rate special format (Avg)
             if value is None:
                 value = point.get("Avg")
             if value is None:
@@ -96,7 +139,7 @@ def _ingest_metrics(session, metrics: list) -> int:
                 "value": float(value),
                 "unit": unit,
                 "recorded_at": recorded_at.isoformat(),
-                "source_name": point.get("source"),
+                "source_name": point.get("source", "Health Auto Export"),
             })
 
     return bulk_upsert(
@@ -117,32 +160,49 @@ def _ingest_workouts(session, workouts: list) -> int:
         except (ValueError, KeyError):
             continue
 
-        # Extract average and max HR from heartRateData array
+        # Extract HR — try structured heartRate object first (HAE v2),
+        # then fall back to heartRateData array.
         avg_hr = None
         max_hr = None
-        hr_data = w.get("heartRateData", [])
-        if hr_data:
-            avgs = [p["Avg"] for p in hr_data if "Avg" in p]
-            maxes = [p["Max"] for p in hr_data if "Max" in p]
-            if avgs:
-                avg_hr = sum(avgs) / len(avgs)
-            if maxes:
-                max_hr = max(maxes)
+        hr_summary = w.get("heartRate", {})
+        if hr_summary:
+            avg_obj = hr_summary.get("avg", {})
+            max_obj = hr_summary.get("max", {})
+            if avg_obj:
+                avg_hr = avg_obj.get("qty")
+            if max_obj:
+                max_hr = max_obj.get("qty")
+        if avg_hr is None or max_hr is None:
+            hr_data = w.get("heartRateData", [])
+            if hr_data:
+                avgs = [p["Avg"] for p in hr_data if "Avg" in p]
+                maxes = [p["Max"] for p in hr_data if "Max" in p]
+                if avgs and avg_hr is None:
+                    avg_hr = sum(avgs) / len(avgs)
+                if maxes and max_hr is None:
+                    max_hr = max(maxes)
 
         energy = w.get("activeEnergyBurned", {})
-        energy_kcal = energy.get("qty") if energy.get("units") in ("kcal", None) else None
+        energy_kcal = energy.get("qty")
+        if energy.get("units") == "kJ" and energy_kcal is not None:
+            energy_kcal = energy_kcal / 4.184
 
         distance = w.get("distance", {})
         distance_m = distance.get("qty")
-        # Convert km to meters if needed
         if distance.get("units") == "km" and distance_m is not None:
             distance_m = distance_m * 1000
-        # Convert miles to meters if needed
         elif distance.get("units") == "mi" and distance_m is not None:
             distance_m = distance_m * 1609.344
 
+        raw_name = w.get("name", "Unknown")
+        workout_type = HAE_WORKOUT_MAP.get(raw_name, raw_name)
+
+        # Extract cadence if available
+        cadence = w.get("stepCadence", {})
+        avg_cadence = cadence.get("qty") if cadence else None
+
         rows.append({
-            "workout_type": w.get("name", "Unknown"),
+            "workout_type": workout_type,
             "start_time": start.isoformat(),
             "end_time": end.isoformat(),
             "duration_sec": w.get("duration"),
@@ -150,7 +210,7 @@ def _ingest_workouts(session, workouts: list) -> int:
             "energy_kcal": energy_kcal,
             "avg_hr": avg_hr,
             "max_hr": max_hr,
-            "avg_cadence": None,  # Not in webhook payload; available in XML
+            "avg_cadence": avg_cadence,
             "source_name": "Health Auto Export",
         })
 
