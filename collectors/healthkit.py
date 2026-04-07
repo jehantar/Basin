@@ -185,6 +185,16 @@ class HealthKitCollector(BaseCollector):
         if energy_val and elem.get("totalEnergyBurnedUnit") == "kcal":
             energy_kcal = float(energy_val)
 
+        # Extract elevation from MetadataEntry children
+        elevation_m = None
+        for meta in elem.findall("MetadataEntry"):
+            if meta.get("key") == "HKElevationAscended":
+                try:
+                    elevation_m = float(meta.get("value", 0))
+                except (ValueError, TypeError):
+                    pass
+                break
+
         return {
             "workout_type": workout_type,
             "start_time": start.isoformat(),
@@ -195,6 +205,7 @@ class HealthKitCollector(BaseCollector):
             "avg_hr": None,
             "max_hr": None,
             "avg_cadence": None,
+            "elevation_m": elevation_m,
             "source_name": elem.get("sourceName"),
         }
 

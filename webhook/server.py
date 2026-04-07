@@ -72,10 +72,12 @@ async def healthkit_webhook(request: Request):
     metrics_count = 0
     workouts_count = 0
 
+    workouts = data.get("workouts", [])
+
     try:
         with get_session() as session:
             metrics_count = _ingest_metrics(session, data.get("metrics", []))
-            workouts_count = _ingest_workouts(session, data.get("workouts", []))
+            workouts_count = _ingest_workouts(session, workouts)
     except Exception as e:
         logger.error(f"HealthKit webhook error: {e}")
         _save_failed_payload(body, str(e))
