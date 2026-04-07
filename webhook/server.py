@@ -45,6 +45,8 @@ HAE_METRIC_MAP = {
 
 # Normalize HAE workout names to match existing DB values.
 HAE_WORKOUT_MAP = {
+    "Outdoor Run": "Running",
+    "Indoor Run": "Running",
     "Traditional Strength Training": "Strength Training",
     "Functional Strength Training": "Functional Strength",
     "High Intensity Interval Training": "HIIT",
