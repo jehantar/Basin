@@ -33,6 +33,7 @@ CREATE TABLE healthkit.workouts (
     avg_hr          DOUBLE PRECISION,
     max_hr          DOUBLE PRECISION,
     avg_cadence     DOUBLE PRECISION,
+    elevation_m     DOUBLE PRECISION,
     source_name     TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (workout_type, start_time, source_name)
