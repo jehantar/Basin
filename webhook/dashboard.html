@@ -629,7 +629,6 @@
               <th>Duration</th>
               <th>Cadence</th>
               <th>Avg Power</th>
-              <th>Elevation</th>
             </tr>
           </thead>
           <tbody id="runsBody"></tbody>
@@ -920,6 +919,10 @@
       type: 'bar',
       marker: { color: '#3b82f6', opacity: 0.85 },
       text: hoverText,
+      textposition: 'inside',
+      textangle: 0,
+      insidetextanchor: 'middle',
+      textfont: { color: '#ffffff', size: 11 },
       hovertemplate: 'Week of %{x}<br>%{y:.1f} mi<br>%{text}<extra></extra>'
     }], baseLayout('Mileage', 'Week', 'Miles'), plotConfig);
 
@@ -955,10 +958,6 @@
       var tdPower = document.createElement('td');
       tdPower.textContent = r.avg_power != null ? r.avg_power + ' W' : '---';
       tr.appendChild(tdPower);
-
-      var tdElev = document.createElement('td');
-      tdElev.textContent = r.elevation_ft != null ? r.elevation_ft + ' ft' : '---';
-      tr.appendChild(tdElev);
 
       tbody.appendChild(tr);
     });
