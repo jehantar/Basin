@@ -30,32 +30,17 @@ def dashboard_redirect():
 HEALTHKIT_FAILED_DIR = "/data/healthkit/failed"
 HEALTHKIT_WEBHOOK_KEY = os.environ.get("HEALTHKIT_WEBHOOK_KEY")
 
-# Health Auto Export sends title-case names; map to DB snake_case names.
+# HAE sends snake_case names — only map the ones that differ from DB column values.
 HAE_METRIC_MAP = {
-    "Heart Rate": "heart_rate",
-    "Resting Heart Rate": "resting_heart_rate",
-    "Heart Rate Variability": "heart_rate_variability",
-    "Walking Heart Rate Average": "walking_heart_rate",
-    "Respiratory Rate": "respiratory_rate",
-    "VO2 Max": "vo2max",
-    "Step Count": "step_count",
-    "Walking + Running Distance": "walking_running_distance",
-    "Flights Climbed": "flights_climbed",
-    "Active Energy Burned": "active_energy",
-    "Basal Energy Burned": "basal_energy",
-    "Apple Exercise Time": "exercise_time",
-    "Apple Stand Time": "stand_time",
-    "Body Mass": "weight_body_mass",
-    "Body Fat Percentage": "body_fat_percentage",
-    "Running Speed": "running_speed",
-    "Running Power": "running_power",
-    "Running Stride Length": "running_stride_length",
-    "Running Ground Contact Time": "running_ground_contact_time",
-    "Running Vertical Oscillation": "running_vertical_oscillation",
-    "Walking Speed": "walking_speed",
-    "Walking Step Length": "walking_step_length",
-    "Walking Double Support Percentage": "walking_double_support_pct",
-    "Walking Asymmetry Percentage": "walking_asymmetry_pct",
+    "vo2_max": "vo2max",
+    "basal_energy_burned": "basal_energy",
+    "apple_exercise_time": "exercise_time",
+    "apple_stand_time": "stand_time",
+    "walking_heart_rate_average": "walking_heart_rate",
+    "walking_double_support_percentage": "walking_double_support_pct",
+    "walking_asymmetry_percentage": "walking_asymmetry_pct",
+    "body_mass": "weight_body_mass",
+    "body_fat_percentage": "body_fat_percentage",
 }
 
 # Normalize HAE workout names to match existing DB values.
@@ -118,8 +103,6 @@ def _ingest_metrics(session, metrics: list) -> int:
     for metric in metrics:
         raw_name = metric.get("name", "")
         metric_name = HAE_METRIC_MAP.get(raw_name, raw_name)
-        if raw_name and raw_name not in HAE_METRIC_MAP:
-            logger.warning(f"Unmapped HAE metric: {raw_name!r}")
         unit = metric.get("units", "")
         for point in metric.get("data", []):
             # Handle standard qty field, then fall back to Avg (heart rate)
