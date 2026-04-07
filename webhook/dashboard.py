@@ -58,7 +58,8 @@ def get_running_data(start: str | None = None, end: str | None = None):
         # Single set-based query: join workouts with speed/power metrics
         # using each workout's time window, avoiding O(N) per-run queries
         rows = session.execute(text("""
-            SELECT w.id,
+            SELECT DISTINCT ON (w.start_time)
+                   w.id,
                    (w.start_time AT TIME ZONE 'UTC')::date as date,
                    round((w.duration_sec / 60.0)::numeric, 1) as duration_min,
                    round(avg(speed.value)::numeric, 2) as avg_speed,
@@ -75,7 +76,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
             WHERE w.workout_type = 'Running'
               AND (w.start_time AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
             GROUP BY w.id, w.start_time, w.end_time, w.duration_sec
-            ORDER BY w.start_time
+            ORDER BY w.start_time, (w.source_name = 'Health Auto Export') ASC
         """), {"start": start_date, "end": end_date}).fetchall()
 
         # Get avg stride length per workout (to derive cadence = speed / stride)
