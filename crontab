@@ -11,6 +11,9 @@
 # Teller — daily at 7:00 AM UTC
 0 7 * * * set -a; . /etc/basin.env; set +a; cd /app && python -m collectors.teller >> /var/log/basin/teller.log 2>&1
 
+# Nasdaq / SHARADAR — daily at 1:30 AM UTC (~9:30 PM ET; shifts with DST)
+30 1 * * * set -a; . /etc/basin.env; set +a; cd /app && python -m collectors.nasdaq >> /var/log/basin/nasdaq.log 2>&1
+
 # Daily Postgres backup at 2:00 AM UTC
 0 2 * * * set -a; . /etc/basin.env; set +a; /app/scripts/backup.sh >> /var/log/basin/backup.log 2>&1
 

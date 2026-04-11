@@ -15,6 +15,7 @@ COLLECTOR_SCHEDULES = {
     "teller": "Daily 7:00 AM UTC",
     "hevy": "Daily 6:00 AM UTC",
     "healthkit": "Daily 6:05 AM UTC",
+    "nasdaq": "Daily 1:30 AM UTC",
 }
 
 

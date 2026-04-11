@@ -44,6 +44,7 @@ services:
       TELLER_KEY_PATH: /certs/teller/private_key.pem
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      NASDAQ_DATA_LINK_API_KEY: ${NASDAQ_DATA_LINK_API_KEY}
 
   webhook:
     build:

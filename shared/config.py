@@ -12,6 +12,7 @@ class Config:
     teller_key_path: str = ""
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    nasdaq_data_link_api_key: str = ""
 
 
 def load_config() -> Config:
@@ -22,4 +23,5 @@ def load_config() -> Config:
         teller_key_path=os.environ.get("TELLER_KEY_PATH", ""),
         telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
+        nasdaq_data_link_api_key=os.environ.get("NASDAQ_DATA_LINK_API_KEY", ""),
     )
