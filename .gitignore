@@ -13,6 +13,9 @@ dist/
 data/
 backups/
 
+# Browser automation
+.playwright-mcp/
+
 # OS
 .DS_Store
 

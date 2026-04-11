@@ -498,16 +498,16 @@ git commit -m "feat: replace strength panel with volume progression and workout 
 
 ```bash
 rsync -av --exclude='.git' --exclude='__pycache__' --exclude='docs/' --exclude='.DS_Store' --exclude='.superpowers/' \
-  /Users/jehan/Projects/Basin/webhook/ root@reservebot:/opt/basin/webhook/
+  ./webhook/ root@<VM_HOST>:/opt/basin/webhook/
 
-ssh root@reservebot 'export $(cat /etc/basin/secrets | xargs) && cd /opt/basin && \
+ssh root@<VM_HOST> 'export $(cat /etc/basin/secrets | xargs) && cd /opt/basin && \
   op run --env-file=.env -- docker compose up -d --build webhook'
 ```
 
 - [ ] **Step 2: Verify API returns new fields**
 
 ```bash
-curl -s "http://100.125.126.42:8075/api/fitness/strength?start=2025-01-01" | python3 -c "
+curl -s "http://<VM_IP>:8075/api/fitness/strength?start=2025-01-01" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
 print('Titles:', d['workout_titles'])
@@ -523,7 +523,7 @@ Expected: workout_titles list, workouts with nested exercises/sets, legacy field
 
 - [ ] **Step 3: Browser verification**
 
-Open `http://100.125.126.42:8075/dashboard` and verify:
+Open `http://<VM_IP>:8075/dashboard` and verify:
 - Strength card shows latest session volume and title
 - Clicking strength card shows tabs (Lower A, Upper A, Lower B, Upper B)
 - Tabs switch the chart and log to that workout type only

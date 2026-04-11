@@ -6,7 +6,7 @@
 #   ./scripts/sync-health.sh hevy               # sync hevy only
 set -euo pipefail
 
-VM="root@Basin"
+VM="${BASIN_VM:-root@Basin}"
 BASIN="/opt/basin"
 EXPORT_DIR="$HOME/Desktop/Basin Exports"
 

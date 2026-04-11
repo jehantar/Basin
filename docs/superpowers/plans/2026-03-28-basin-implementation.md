@@ -236,7 +236,7 @@ BASIN_PG_PASSWORD="op://Basin/Postgres/password"
 # Schwab OAuth (register at developer.schwab.com)
 SCHWAB_CLIENT_ID="op://Basin/Schwab/client_id"
 SCHWAB_CLIENT_SECRET="op://Basin/Schwab/client_secret"
-SCHWAB_REDIRECT_URI="http://100.125.126.42:8075/schwab/callback"
+SCHWAB_REDIRECT_URI="http://<VM_IP>:8075/schwab/callback"
 
 # Teller (download from teller.io dashboard)
 TELLER_ACCESS_TOKEN="op://Basin/Teller/access_token"
@@ -3304,7 +3304,7 @@ git commit -m "feat: add daily Postgres backup script with 30-day retention"
 SSH into the VM and set up the Basin project:
 
 ```bash
-ssh root@reservebot "cd /opt/basin && git init && git remote add origin https://github.com/jehantar/Basin.git && git pull origin main"
+ssh root@<VM_HOST> "cd /opt/basin && git init && git remote add origin https://github.com/jehantar/Basin.git && git pull origin main"
 ```
 
 - [ ] **Step 2: Create .env with 1Password references**
@@ -3312,11 +3312,11 @@ ssh root@reservebot "cd /opt/basin && git init && git remote add origin https://
 SSH and create the `.env` file:
 
 ```bash
-ssh root@reservebot "cat > /opt/basin/.env << 'EOF'
+ssh root@<VM_HOST> "cat > /opt/basin/.env << 'EOF'
 BASIN_PG_PASSWORD=\"op://Basin/Postgres/password\"
 SCHWAB_CLIENT_ID=\"op://Basin/Schwab/client_id\"
 SCHWAB_CLIENT_SECRET=\"op://Basin/Schwab/client_secret\"
-SCHWAB_REDIRECT_URI=\"http://100.125.126.42:8075/schwab/callback\"
+SCHWAB_REDIRECT_URI=\"http://<VM_IP>:8075/schwab/callback\"
 TELLER_ACCESS_TOKEN=\"op://Basin/Teller/access_token\"
 TELLER_CERT_PATH=/certs/teller/certificate.pem
 TELLER_KEY_PATH=/certs/teller/private_key.pem
@@ -3330,25 +3330,25 @@ Note: The 1Password vault entries (`op://Basin/*`) must be created in 1Password 
 - [ ] **Step 3: Set directory ownership**
 
 ```bash
-ssh root@reservebot "chown -R basin:basin /opt/basin"
+ssh root@<VM_HOST> "chown -R basin:basin /opt/basin"
 ```
 
 - [ ] **Step 4: Run bootstrap script**
 
 ```bash
-ssh root@reservebot "bash /opt/basin/scripts/bootstrap-vm.sh"
+ssh root@<VM_HOST> "bash /opt/basin/scripts/bootstrap-vm.sh"
 ```
 
 - [ ] **Step 5: Build and start Docker Compose**
 
 ```bash
-ssh root@reservebot "cd /opt/basin && op run --env-file=.env -- docker compose up -d --build"
+ssh root@<VM_HOST> "cd /opt/basin && op run --env-file=.env -- docker compose up -d --build"
 ```
 
 - [ ] **Step 6: Verify services are running**
 
 ```bash
-ssh root@reservebot "cd /opt/basin && docker compose ps"
+ssh root@<VM_HOST> "cd /opt/basin && docker compose ps"
 ```
 
 Expected output: three services (postgres, collector, webhook) all showing `Up (healthy)`.
@@ -3358,7 +3358,7 @@ Expected output: three services (postgres, collector, webhook) all showing `Up (
 From your local machine:
 
 ```bash
-curl http://100.125.126.42:8075/health
+curl http://<VM_IP>:8075/health
 ```
 
 Expected: `{"status":"ok"}`
@@ -3366,7 +3366,7 @@ Expected: `{"status":"ok"}`
 - [ ] **Step 8: Verify Postgres schema was created**
 
 ```bash
-ssh root@reservebot "cd /opt/basin && docker compose exec postgres psql -U basin -d basin -c '\\dn'"
+ssh root@<VM_HOST> "cd /opt/basin && docker compose exec postgres psql -U basin -d basin -c '\\dn'"
 ```
 
 Expected: schemas `basin`, `healthkit`, `hevy`, `schwab`, `teller` listed.
@@ -3374,7 +3374,7 @@ Expected: schemas `basin`, `healthkit`, `hevy`, `schwab`, `teller` listed.
 - [ ] **Step 9: Run the health CLI**
 
 ```bash
-ssh root@reservebot "cd /opt/basin && docker compose exec collector python -m cli.health"
+ssh root@<VM_HOST> "cd /opt/basin && docker compose exec collector python -m cli.health"
 ```
 
 Expected: shows all collectors with "never" since no data has been ingested yet.
@@ -3393,9 +3393,9 @@ git add -A && git commit -m "fix: deployment adjustments" && git push origin mai
 
 After deployment, verify each component end-to-end:
 
-- [ ] **HealthKit webhook:** Configure Health Auto Export to POST to `http://100.125.126.42:8075/healthkit/webhook`. Trigger a manual export. Check `basin.collector_runs` and `healthkit.metrics`.
+- [ ] **HealthKit webhook:** Configure Health Auto Export to POST to `http://<VM_IP>:8075/healthkit/webhook`. Trigger a manual export. Check `basin.collector_runs` and `healthkit.metrics`.
 - [ ] **Hevy CSV:** SCP a Hevy export CSV to `/opt/basin/data/hevy/drop/` on the VM. Run `docker compose exec collector python -m collectors.hevy`. Check that data appears in `hevy.workouts` and `hevy.sets`.
-- [ ] **Schwab OAuth:** Visit `http://100.125.126.42:8075/schwab/auth` over Tailscale (only after registering the app at developer.schwab.com). Complete login. Check `schwab.tokens` for stored tokens.
+- [ ] **Schwab OAuth:** Visit `http://<VM_IP>:8075/schwab/auth` over Tailscale (only after registering the app at developer.schwab.com). Complete login. Check `schwab.tokens` for stored tokens.
 - [ ] **Teller:** Only testable after completing Teller Connect enrollment and placing certs on the VM. Run `docker compose exec collector python -m collectors.teller` once credentials are in place.
 - [ ] **CLI health:** Run `docker compose exec collector python -m cli.health` — should show recent runs for whichever collectors have been tested.
 - [ ] **Backup:** Run `docker compose exec collector /app/scripts/backup.sh`. Check `/data/backups/` for the gzipped dump.

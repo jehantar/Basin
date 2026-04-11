@@ -82,7 +82,7 @@ services:
     depends_on:
       - postgres
     ports:
-      - "100.125.126.42:8075:8000"
+      - "<VM_IP>:8075:8000"
     networks:
       - basin
     environment:
@@ -101,7 +101,7 @@ networks:
 ```
 
 Key decisions:
-- Webhook binds to Tailscale IP only (`100.125.126.42:8075`), never `0.0.0.0`
+- Webhook binds to Tailscale IP only (`<VM_IP>:8075`), never `0.0.0.0`
 - Postgres tuned conservatively for 2GB RAM VM
 - Migrations run automatically on first start via `docker-entrypoint-initdb.d`
 - Teller mTLS certs mounted read-only, stored outside git in `certs/`
@@ -395,7 +395,7 @@ Each collector is invoked as a standalone script: `python -m collectors.hevy`
 ### Collector Behaviors
 
 **HealthKit (webhook path):**
-- Health Auto Export app on iPhone configured to POST JSON to `http://100.125.126.42:8075/healthkit/webhook`
+- Health Auto Export app on iPhone configured to POST JSON to `http://<VM_IP>:8075/healthkit/webhook`
 - FastAPI endpoint parses the payload, upserts into `healthkit.metrics` and `healthkit.workouts`
 - Idempotency: `ON CONFLICT (metric_type, recorded_at, source_name) DO UPDATE`
 
@@ -502,7 +502,7 @@ Three-tier approach:
 1. **Automatic (every collector run):** If `access_token` is expired, silently refresh using `refresh_token`. No user action needed. Happens every 30 minutes during scheduled runs.
 
 2. **Watchdog (every 6 hours):** Cron checks `refresh_expires`. If within 24 hours, sends Telegram alert:
-   > `[Basin] Schwab refresh token expires in 18h. Re-auth: http://100.125.126.42:8075/schwab/auth`
+   > `[Basin] Schwab refresh token expires in 18h. Re-auth: http://<VM_IP>:8075/schwab/auth`
 
 3. **Manual re-auth (approximately weekly):** User clicks the link over Tailscale, gets redirected through Schwab's OAuth flow, new tokens are stored. Takes about 30 seconds.
 
@@ -517,7 +517,7 @@ Before deploying Basin, the VM needs:
 3. **Basin project directory** — `/opt/basin/` owned by a dedicated `basin` user
 4. **Teller certificates** — stored in `/opt/basin/certs/teller/` (outside git)
 5. **Teller enrollment** — complete Teller Connect once in a browser to get the access token
-6. **Schwab OAuth redirect URI** — register `http://100.125.126.42:8075/schwab/callback` at developer.schwab.com
+6. **Schwab OAuth redirect URI** — register `http://<VM_IP>:8075/schwab/callback` at developer.schwab.com
 7. **1Password `.env` file** — at `/opt/basin/.env` with `op://` references
 
 The reservation bot at `/opt/reservebot/` remains completely untouched.

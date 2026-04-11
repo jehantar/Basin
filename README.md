@@ -45,7 +45,7 @@ Local Machine                          VM (Docker)
   - Heatmap view with color-coded return tiles
   - Sortable table with % return, CAGR, alpha vs S&P, 52-week high/low
   - Sector allocation donut chart
-  - Stock groups: Brokerage, IRA, Parth
+  - Configurable stock groups (e.g., Brokerage, IRA)
   - Search/filter, select all/unselect all, click-to-drilldown
 - **System** — Collector health, run history, error tracking
 

@@ -27,38 +27,26 @@ MERCHANT_CATEGORIES = {
     "uber eats": "dining", "grubhub": "dining", "seamless": "dining",
     "restaurant": "dining", "restau": "dining", "tst*": "dining",
     "cafe": "dining", "coffee": "dining", "starbucks": "dining", "chipotle": "dining",
-    "sweetgreen": "dining", "cotogna": "dining", "copra": "dining", "delfina": "dining",
-    "quince": "dining", "papalote": "dining", "mugizo": "dining", "yakiniq": "dining",
-    "rich table": "dining", "octavia": "dining", "kindred": "dining", "osamil": "dining",
-    "ernest": "dining", "bicyclette": "dining", "bacchanal": "dining",
-    "jules pizza": "dining", "eatery": "dining", "emery f&b": "dining",
-    "capos": "dining", "sea nyc": "dining", "amara": "dining",
+    "sweetgreen": "dining", "eatery": "dining",
     # Bars & nightlife
-    "devil's acre": "entertainment", "sullivan": "entertainment",
     "bowlero": "entertainment",
     # Transportation
     "uber": "transportation", "lyft": "transportation", "parking": "transportation",
     "bart": "transportation", "transit": "transportation",
     # Shopping & retail
     "amazon": "shopping", "target": "shopping", "walmart": "shopping",
-    "suitsupply": "shopping", "grant stone": "shopping", "kachins": "shopping",
     "nordstrom": "shopping", "zara": "shopping", "uniqlo": "shopping",
     "ebay": "shopping", "etsy": "shopping", "wayfair": "shopping",
-    "lululemon": "shopping", "allen edmonds": "shopping", "ray ban": "shopping",
-    "sunglass": "shopping", "polo factory": "shopping", "bombay shirt": "shopping",
-    "manyavar": "shopping", "freja": "shopping", "vionicshoes": "shopping",
-    "fortes brothers": "shopping", "ups": "shopping",
+    "lululemon": "shopping", "ups": "shopping",
     # Travel & accommodation
     "airbnb": "travel", "hotel": "travel", "airline": "travel", "vrbo": "travel",
     "algotels": "travel", "homeaway": "travel", "expedia": "travel",
     "united air": "travel", "delta air": "travel", "southwest": "travel",
-    "four seasons": "travel", "anantara": "travel", "wynn": "travel",
-    "caesers": "travel",
+    "four seasons": "travel", "wynn": "travel",
     # Entertainment & events
     "vivid seats": "entertainment", "vivid": "entertainment",
     "axs.com": "entertainment", "axs com": "entertainment",
     "ticketmaster": "entertainment", "movie": "entertainment", "cinema": "entertainment",
-    "desi beat": "entertainment", "grand kyiv": "entertainment",
     "broadway": "entertainment",
     # Fitness & health
     "equinox": "fitness", "f45": "fitness", "barry": "fitness", "gym": "fitness",
@@ -77,11 +65,7 @@ MERCHANT_CATEGORIES = {
     # Utilities & telecom
     "comcast": "utilities", "verizon": "utilities", "at&t": "utilities", "t-mobile": "utilities",
     # Auto & vehicle
-    "honda": "auto", "harbor automotive": "auto", "jiffy lube": "auto", "car wash": "auto",
-    "geneva watch": "auto",
-    # Wine & spirits
-    "hamel family wines": "dining", "fsp*hamel": "dining", "fsp hamel": "dining",
-    "tock at": "dining",
+    "honda": "auto", "jiffy lube": "auto", "car wash": "auto",
     # Paypal
     "paypal *hotel": "travel", "paypal *homeaway": "travel",
 }
