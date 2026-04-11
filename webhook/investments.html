@@ -1107,7 +1107,6 @@
 
   function showDrilldown(ticker) {
     drilldownTicker = ticker;
-    $('drilldownTitle').textContent = ticker + ' — Price History';
     $('drilldownPanel').classList.add('open');
 
     var params = getDateParams();
@@ -1117,7 +1116,22 @@
       .then(function(r) { return r.json(); })
       .then(function(data) {
         var series = data.series[ticker];
-        if (!series) return;
+        if (!series || series.values.length === 0) return;
+
+        // Compute % return for the period
+        var startPrice = series.values[0];
+        var endPrice = series.values[series.values.length - 1];
+        var returnPct = ((endPrice - startPrice) / startPrice) * 100;
+        var returnColor = returnPct >= 0 ? '#10b981' : '#ef4444';
+
+        var titleEl = $('drilldownTitle');
+        clearChildren(titleEl);
+        titleEl.appendChild(document.createTextNode(ticker + ' — Price History  '));
+        var retSpan = createEl('span', null, fmtPct(returnPct));
+        retSpan.style.color = returnColor;
+        retSpan.style.fontFamily = 'var(--mono)';
+        retSpan.style.fontSize = '0.85rem';
+        titleEl.appendChild(retSpan);
 
         Plotly.newPlot($('chartDrilldown'), [{
           x: series.dates,
@@ -1311,17 +1325,19 @@
       return;
     }
 
+    var totalStocks = values.reduce(function(a, b) { return a + b; }, 0);
+
     Plotly.newPlot(el, [{
       labels: labels,
       values: values,
       type: 'pie',
-      hole: 0.5,
+      hole: 0.55,
       marker: { colors: colors, line: { color: '#141b2d', width: 2 } },
       textposition: 'inside',
       textinfo: 'label',
       insidetextorientation: 'horizontal',
       textfont: { color: '#f1f5f9', size: 10, family: 'DM Sans, sans-serif' },
-      hovertemplate: '<b>%{label}</b><br>%{value} stocks (%{percent})<extra></extra>',
+      hoverinfo: 'none',
       sort: false
     }], {
       paper_bgcolor: 'transparent',
@@ -1329,11 +1345,28 @@
       font: { color: '#94a3b8', family: 'DM Sans, sans-serif' },
       margin: { t: 0, b: 0, l: 0, r: 0 },
       showlegend: false,
-      hoverlabel: {
-        bgcolor: '#1e293b', bordercolor: '#2a3650',
-        font: { family: 'DM Sans, sans-serif', color: '#f1f5f9', size: 12 }
-      }
+      annotations: [{
+        text: totalStocks + '<br>stocks',
+        x: 0.5, y: 0.5,
+        font: { size: 14, color: '#f1f5f9', family: 'Space Mono, monospace' },
+        showarrow: false
+      }]
     }, { responsive: true, displayModeBar: false });
+
+    // Show sector name + count in donut center on hover
+    el.on('plotly_hover', function(data) {
+      var pt = data.points[0];
+      Plotly.relayout(el, {
+        'annotations[0].text': '<b>' + pt.label + '</b><br>' + pt.value + ' stocks',
+        'annotations[0].font.size': 13
+      });
+    });
+    el.on('plotly_unhover', function() {
+      Plotly.relayout(el, {
+        'annotations[0].text': totalStocks + '<br>stocks',
+        'annotations[0].font.size': 14
+      });
+    });
   }
 
   /* ── Overlay Chart ── */
