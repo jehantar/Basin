@@ -1,5 +1,51 @@
 # Investment Tracker — Detailed Implementation Plan
 
+## Plan Review (Optimization + Blind Spots)
+
+### What is strong already
+- Clear end-state and scope boundaries (watchlist comparison, no position tracking)
+- Good schema normalization for groups and price history
+- Practical collector design with idempotent upserts
+- Concrete API/UI expectations
+
+### Blind spots to address before implementation
+1. **Provider dependency risk (single-source data).** The plan assumes Nasdaq Data Link SHARADAR remains reachable and quota-sufficient. Add fallback behavior for API outage / quota exhaustion (degraded UI state + cached-last data mode + alerting).
+2. **Ticker lifecycle + corporate actions semantics.** Splits/dividends/delistings/ticker renames can distort returns if adjusted and unadjusted fields are mixed. Define one canonical return basis (`close` adjusted) and document exceptions.
+3. **Lookback/volume performance risk.** 50 tickers × 10 years may be fine now, but UI/API can degrade if watchlist grows. Add result-size limits and pre-aggregation strategy now.
+4. **Ambiguous “current price”.** `current_price = end_price` for selected range is potentially misleading. Also return `latest_close` and `latest_close_date` across full available data.
+5. **Data freshness visibility.** Include `last_price_date` and collector watermark fields for trust/debuggability.
+6. **Input validation and abuse controls.** Add hard caps on ticker count/date span in `/api/investments/prices`.
+7. **Time/calendar correctness.** “1:30 AM UTC = 9:30 PM ET” shifts with DST. Use explicit timezone scheduling guidance or note DST caveat.
+8. **Operational observability gap.** Add counters/status for success/failure and retry/backoff policy for 429/5xx responses.
+9. **Migration safety and rollback.** Add deployment ordering + rollback guidance if migration lands before collector/API.
+10. **Testing depth mismatch.** Add explicit unit/integration tests for SQL aggregation and edge cases.
+
+### Optimized execution strategy (reduce rework)
+
+#### Phase 0 — Contract hardening (before coding)
+- Freeze API additions: `latest_close`, `latest_close_date`, `period_start_price`, `period_end_price`, `data_freshness`.
+- Document `return_basis: "split_adjusted_close"`.
+- Set guardrails: max tickers/query and max date span.
+- Decide error model (422 validation, 503 provider unavailable, partial-data warnings).
+
+#### Phase 1 — Storage + ingestion foundation
+- Implement migration + indexes + seed.
+- Implement collector with exponential backoff for 429/5xx and watermark logging.
+- Add ops metadata for freshness and last run status.
+
+#### Phase 2 — API correctness-first
+- Build `/api/investments/watchlist`, `/prices`, `/groups` with strict validation, bounded results, deterministic sorting, null-safe math.
+- Add focused tests before UI wiring.
+
+#### Phase 3 — UI integration
+- Ship core overlay chart + table first.
+- Add drilldown second.
+- Surface stale-data banner driven by freshness metadata.
+
+#### Phase 4 — Hardening + operations
+- Add runbook for stale collector, quota exceeded, provider outage.
+- Add acceptance checklist with explicit pass/fail criteria.
+
 ## Context
 
 Build a stock watchlist tab at `/dashboard/investments` that tracks ~50 stocks' price performance over configurable time periods. Data source: Nasdaq Data Link SHARADAR/SEP (daily OHLCV, refreshed nightly after market close). This is a comparison watchlist — no positions or cost basis. Users manage tickers via DB, organize into saved groups, and compare performance via normalized overlay charts and a sortable returns table.
@@ -757,3 +803,8 @@ Add "Investments" link to the `<nav class="top-nav">` in all 3 existing HTML fil
 10. Test all presets (YTD through All) — verify date ranges and data
 11. Check ops dashboard — nasdaq collector appears with schedule
 12. Check nav bar on all 4 dashboards — Investments link present and routing works
+13. Simulate provider throttling (HTTP 429) and verify retry/backoff and non-crashing behavior
+14. Validate DST scheduling assumption against host timezone behavior
+15. Query with invalid ticker/date inputs and confirm 4xx validation responses
+16. Query with oversized ticker list and confirm bounded rejection
+17. Force stale watermark and verify stale-data signaling in API/UI
