@@ -1,9 +1,13 @@
-"""Nasdaq Data Link collector — fetches daily stock prices from SHARADAR/SEP."""
+"""Nasdaq Data Link collector — fetches daily stock prices from SHARADAR/SEP.
+
+Benchmark ETFs (SPY, QQQ) are fetched from Yahoo Finance since SHARADAR/SEP
+only covers individual equities.
+"""
 
 import logging
 import os
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import httpx
 from sqlalchemy import text
@@ -14,6 +18,7 @@ from shared.db import bulk_upsert
 logger = logging.getLogger("basin.nasdaq")
 
 SHARADAR_API = "https://data.nasdaq.com/api/v3/datatables/SHARADAR/SEP"
+YAHOO_CHART_API = "https://query1.finance.yahoo.com/v8/finance/chart"
 LOOKBACK_YEARS = 10
 BATCH_SIZE = 10          # tickers per API request
 PAGE_SIZE = 10000        # max rows per API page
@@ -27,17 +32,14 @@ class NasdaqCollector(BaseCollector):
 
     def collect(self, session) -> int:
         api_key = os.environ.get("NASDAQ_DATA_LINK_API_KEY", "")
-        if not api_key:
-            logger.warning("NASDAQ_DATA_LINK_API_KEY not configured, skipping")
-            return 0
 
         # 1. Get active watchlist with their max existing date
         tickers = session.execute(text("""
-            SELECT w.id, w.ticker, MAX(dp.date) as max_date
+            SELECT w.id, w.ticker, w.is_benchmark, MAX(dp.date) as max_date
             FROM investments.watchlist w
             LEFT JOIN investments.daily_prices dp ON dp.watchlist_id = w.id
             WHERE w.active = true
-            GROUP BY w.id, w.ticker
+            GROUP BY w.id, w.ticker, w.is_benchmark
         """)).fetchall()
 
         if not tickers:
@@ -47,31 +49,43 @@ class NasdaqCollector(BaseCollector):
         # Build ticker -> watchlist_id lookup
         ticker_map = {row.ticker: row.id for row in tickers}
 
+        # Split benchmarks (Yahoo Finance) from equities (SHARADAR)
+        benchmark_tickers = [row for row in tickers if row.is_benchmark]
+        equity_tickers = [row for row in tickers if not row.is_benchmark]
+
         # 2. Determine per-ticker fetch start date
         today = date.today()
         earliest = today - timedelta(days=LOOKBACK_YEARS * 365)
 
+        total = 0
+
+        # 2a. Fetch benchmarks from Yahoo Finance
+        total += self._fetch_benchmarks(session, benchmark_tickers, ticker_map, today, earliest)
+
+        # 2b. Fetch equities from SHARADAR
+        if not api_key:
+            logger.warning("NASDAQ_DATA_LINK_API_KEY not configured, skipping equities")
+            return total
+
         per_ticker_start = {}
-        for row in tickers:
+        for row in equity_tickers:
             if row.max_date:
                 per_ticker_start[row.ticker] = row.max_date + timedelta(days=1)
             else:
                 per_ticker_start[row.ticker] = earliest
 
-        # Skip tickers already up to date
         pending = {t: d for t, d in per_ticker_start.items() if d <= today}
         if not pending:
-            logger.info("All tickers up to date")
-            return 0
+            logger.info("All equities up to date")
+            return total
 
-        logger.info(f"{len(pending)} tickers need updates")
+        logger.info(f"{len(pending)} equities need updates")
 
         # 3. Group tickers by start date, then batch
         # Sort by start date so tickers with similar freshness are batched together.
         # This avoids refetching 10 years for a ticker that only needs yesterday's bar.
         sorted_tickers = sorted(pending.keys(), key=lambda t: pending[t])
 
-        total = 0
         client = httpx.Client(timeout=60)
 
         try:
@@ -131,6 +145,75 @@ class NasdaqCollector(BaseCollector):
                         f"Batch {batch_idx + 1}/{len(batches)}: "
                         f"{count} rows upserted for {batch} (from {batch_start})"
                     )
+
+        finally:
+            client.close()
+
+        return total
+
+    def _fetch_benchmarks(self, session, benchmark_rows, ticker_map, today, earliest) -> int:
+        """Fetch benchmark ETF prices from Yahoo Finance."""
+        total = 0
+        client = httpx.Client(timeout=30, headers={"User-Agent": "Mozilla/5.0"})
+
+        try:
+            for row in benchmark_rows:
+                start_date = row.max_date + timedelta(days=1) if row.max_date else earliest
+                if start_date > today:
+                    continue
+
+                # Yahoo Finance uses Unix timestamps
+                period1 = int(datetime.combine(start_date, datetime.min.time()).timestamp())
+                period2 = int(datetime.combine(today + timedelta(days=1), datetime.min.time()).timestamp())
+
+                try:
+                    resp = client.get(
+                        f"{YAHOO_CHART_API}/{row.ticker}",
+                        params={
+                            "period1": period1,
+                            "period2": period2,
+                            "interval": "1d",
+                            "events": "history",
+                        },
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+
+                    result = data["chart"]["result"][0]
+                    timestamps = result.get("timestamp", [])
+                    quote = result["indicators"]["quote"][0]
+                    adjclose_list = result["indicators"].get("adjclose", [{}])
+                    adjclose = adjclose_list[0].get("adjclose", []) if adjclose_list else []
+
+                    db_rows = []
+                    for idx, ts in enumerate(timestamps):
+                        day = date.fromtimestamp(ts)
+                        close = adjclose[idx] if idx < len(adjclose) and adjclose[idx] else quote["close"][idx]
+                        if close is None:
+                            continue
+                        db_rows.append({
+                            "watchlist_id": ticker_map[row.ticker],
+                            "date": day.isoformat(),
+                            "open": quote["open"][idx],
+                            "high": quote["high"][idx],
+                            "low": quote["low"][idx],
+                            "close": round(close, 4),
+                            "volume": int(quote["volume"][idx]) if quote["volume"][idx] else None,
+                            "close_unadj": quote["close"][idx],
+                        })
+
+                    if db_rows:
+                        count = bulk_upsert(
+                            session,
+                            table="investments.daily_prices",
+                            rows=db_rows,
+                            conflict_columns=["watchlist_id", "date"],
+                        )
+                        total += count
+                        logger.info(f"Benchmark {row.ticker}: {count} rows upserted (Yahoo Finance)")
+
+                except Exception as e:
+                    logger.warning(f"Failed to fetch benchmark {row.ticker}: {e}")
 
         finally:
             client.close()

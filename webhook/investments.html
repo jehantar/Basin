@@ -1154,13 +1154,26 @@
   function renderOverlayChart() {
     if (!pricesData || !pricesData.series) return;
 
+    // Build a lookup for benchmark tickers
+    var benchmarkSet = {};
+    if (watchlistData && watchlistData.stocks) {
+      watchlistData.stocks.forEach(function(s) {
+        if (s.is_benchmark) benchmarkSet[s.ticker] = true;
+      });
+    }
+
+    var BENCHMARK_STYLES = { 'SPY': { color: '#ffffff', label: 'S&P 500' }, 'QQQ': { color: '#a0aec0', label: 'Nasdaq 100' } };
+
     var traces = [];
-    var allSeries = [];
+    var stockSeries = [];
     var i = 0;
+
+    // Stock traces first
     for (var ticker in pricesData.series) {
       if (!pricesData.series.hasOwnProperty(ticker)) continue;
+      if (benchmarkSet[ticker]) continue;
       var s = pricesData.series[ticker];
-      allSeries.push(s);
+      stockSeries.push(s);
       traces.push({
         x: s.dates,
         y: s.values,
@@ -1174,13 +1187,32 @@
       i++;
     }
 
-    // Compute average return for the label above the chart
+    // Benchmark traces as dashed reference lines
+    for (var bTicker in pricesData.series) {
+      if (!pricesData.series.hasOwnProperty(bTicker)) continue;
+      if (!benchmarkSet[bTicker]) continue;
+      var bs = pricesData.series[bTicker];
+      var bStyle = BENCHMARK_STYLES[bTicker] || { color: '#94a3b8', label: bTicker };
+      traces.push({
+        x: bs.dates,
+        y: bs.values,
+        type: 'scatter',
+        mode: 'lines',
+        name: bStyle.label,
+        line: { color: bStyle.color, width: 2.5, dash: 'dash' },
+        opacity: 0.7,
+        hoverlabel: { namelength: -1 },
+        hovertemplate: '<b>' + bStyle.label + '</b>: %{y:.2f}<extra></extra>'
+      });
+    }
+
+    // Compute average return for the label above the chart (exclude benchmarks)
     var avgReturnPct = null;
-    if (allSeries.length > 1) {
-      var lastValues = allSeries.map(function(s) { return s.values[s.values.length - 1]; }).filter(Boolean);
+    if (stockSeries.length > 1) {
+      var lastValues = stockSeries.map(function(s) { return s.values[s.values.length - 1]; }).filter(Boolean);
       if (lastValues.length > 0) {
         var avg = lastValues.reduce(function(a, b) { return a + b; }, 0) / lastValues.length;
-        avgReturnPct = avg - 100; // normalized from 100
+        avgReturnPct = avg - 100;
       }
     }
 
