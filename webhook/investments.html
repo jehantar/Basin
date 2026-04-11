@@ -120,10 +120,11 @@
   /* ── Summary Cards ── */
   .summary-cards {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 20px;
     margin-bottom: 28px;
   }
+  .sector-card::before { background: #a78bfa; }
   .summary-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -759,6 +760,10 @@
       <div class="sc-value loading-text" id="worstValue">--</div>
       <div class="sc-sub" id="worstSub">&nbsp;</div>
     </div>
+    <div class="summary-card sector-card">
+      <div class="sc-label" style="color: #a78bfa;">Sectors</div>
+      <div id="sectorChart" style="width:100%;height:160px;"></div>
+    </div>
   </div>
 
   <div class="view-tabs" id="viewTabs">
@@ -773,20 +778,6 @@
         <option value="">All Stocks</option>
       </select>
       <button class="stock-selector-btn" id="stockSelectorBtn">Select Stocks</button>
-    </div>
-    <div class="time-filters">
-      <button class="preset-btn" data-preset="1M">1M</button>
-      <button class="preset-btn" data-preset="3M">3M</button>
-      <button class="preset-btn" data-preset="6M">6M</button>
-      <button class="preset-btn" data-preset="YTD">YTD</button>
-      <button class="preset-btn" data-preset="1Y">1Y</button>
-      <button class="preset-btn" data-preset="3Y">3Y</button>
-      <button class="preset-btn" data-preset="5Y">5Y</button>
-      <button class="preset-btn" data-preset="All">All</button>
-      <span class="filters-sep">|</span>
-      <input type="date" class="date-input" id="startDate" aria-label="Start date">
-      <span class="filters-sep">&ndash;</span>
-      <input type="date" class="date-input" id="endDate" aria-label="End date">
     </div>
   </div>
 
@@ -820,7 +811,20 @@
         <button class="table-ctrl-btn" id="selectAllBtn">Select All</button>
         <button class="table-ctrl-btn" id="unselectAllBtn">Unselect All</button>
         <span class="table-ctrl-count" id="selectionCount"></span>
-        <div id="sectorChart" style="height:140px;flex:1;min-width:200px;"></div>
+        <div class="time-filters">
+          <button class="preset-btn" data-preset="1M">1M</button>
+          <button class="preset-btn" data-preset="3M">3M</button>
+          <button class="preset-btn" data-preset="6M">6M</button>
+          <button class="preset-btn" data-preset="YTD">YTD</button>
+          <button class="preset-btn" data-preset="1Y">1Y</button>
+          <button class="preset-btn" data-preset="3Y">3Y</button>
+          <button class="preset-btn" data-preset="5Y">5Y</button>
+          <button class="preset-btn" data-preset="All">All</button>
+          <span class="filters-sep">|</span>
+          <input type="date" class="date-input" id="startDate" aria-label="Start date">
+          <span class="filters-sep">&ndash;</span>
+          <input type="date" class="date-input" id="endDate" aria-label="End date">
+        </div>
         <input type="text" class="table-search" id="tableSearch" placeholder="Filter stocks..." aria-label="Filter stocks">
       </div>
       <div class="table-wrapper">
@@ -1196,6 +1200,9 @@
         renderTable();
         loadPricesAndRender();
 
+        // Re-fetch drilldown if one is open
+        if (drilldownTicker) showDrilldown(drilldownTicker);
+
         // Re-render active non-stocks view
         if (activeView === 'compare') renderGroupComparison();
         if (activeView === 'heatmap') renderHeatmap();
@@ -1294,8 +1301,7 @@
       sectorCounts[s.sector] = (sectorCounts[s.sector] || 0) + 1;
     });
 
-    var sorted = Object.keys(sectorCounts).sort(function(a, b) { return sectorCounts[b] - sectorCounts[a]; });
-    var labels = sorted;
+    var labels = Object.keys(sectorCounts).sort(function(a, b) { return sectorCounts[b] - sectorCounts[a]; });
     var values = labels.map(function(l) { return sectorCounts[l]; });
     var colors = labels.map(function(l) { return SECTOR_COLORS[l] || '#64748b'; });
 
@@ -1306,27 +1312,23 @@
     }
 
     Plotly.newPlot(el, [{
-      y: labels,
-      x: values,
-      type: 'bar',
-      orientation: 'h',
-      marker: { color: colors, opacity: 0.85 },
-      text: values.map(function(v) { return v; }),
-      textposition: 'outside',
-      textfont: { family: 'Space Mono, monospace', size: 10, color: '#94a3b8' },
-      hovertemplate: '<b>%{y}</b>: %{x} stocks<extra></extra>'
+      labels: labels,
+      values: values,
+      type: 'pie',
+      hole: 0.5,
+      marker: { colors: colors, line: { color: '#141b2d', width: 2 } },
+      textposition: 'inside',
+      textinfo: 'label',
+      insidetextorientation: 'horizontal',
+      textfont: { color: '#f1f5f9', size: 10, family: 'DM Sans, sans-serif' },
+      hovertemplate: '<b>%{label}</b><br>%{value} stocks (%{percent})<extra></extra>',
+      sort: false
     }], {
       paper_bgcolor: 'transparent',
       plot_bgcolor: 'transparent',
       font: { color: '#94a3b8', family: 'DM Sans, sans-serif' },
-      xaxis: { visible: false, zeroline: false },
-      yaxis: {
-        gridcolor: 'transparent',
-        tickfont: { color: '#f1f5f9', family: 'DM Sans, sans-serif', size: 11 },
-        autorange: 'reversed'
-      },
-      margin: { t: 0, b: 0, l: 80, r: 30 },
-      bargap: 0.35,
+      margin: { t: 0, b: 0, l: 0, r: 0 },
+      showlegend: false,
       hoverlabel: {
         bgcolor: '#1e293b', bordercolor: '#2a3650',
         font: { family: 'DM Sans, sans-serif', color: '#f1f5f9', size: 12 }
