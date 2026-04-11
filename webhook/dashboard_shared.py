@@ -49,6 +49,6 @@ def _response_metadata(start_date: date, end_date: date) -> dict:
     return {
         "range_start": start_date.isoformat(),
         "range_end": end_date.isoformat(),
-        "timezone": "UTC",
+        "timezone": "America/Los_Angeles",
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
