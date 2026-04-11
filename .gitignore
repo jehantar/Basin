@@ -19,6 +19,9 @@ backups/
 # OS
 .DS_Store
 
+# Planning docs (contain stale references)
+docs/superpowers/
+
 # IDE
 .vscode/
 .idea/
