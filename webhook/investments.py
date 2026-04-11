@@ -145,6 +145,16 @@ def get_watchlist(
         freshness = _get_data_freshness(session)
 
     # Build response with computed metrics
+    # Compute SPY return for alpha calculation
+    spy_return_pct = None
+    for r in rows:
+        if r.ticker == "SPY":
+            sp = float(r.start_price)
+            ep = float(r.end_price)
+            if sp > 0:
+                spy_return_pct = ((ep - sp) / sp) * 100
+            break
+
     stocks = []
     for r in rows:
         start_price = float(r.start_price)
@@ -157,6 +167,8 @@ def get_watchlist(
             cagr_pct = ((end_price / start_price) ** (1 / years) - 1) * 100
         else:
             cagr_pct = 0
+
+        alpha_pct = round(period_return_pct - spy_return_pct, 2) if spy_return_pct is not None else None
 
         hi_lo = hi_lo_map.get(r.ticker, (None, None))
         latest = latest_map.get(r.ticker, (end_price, None))
@@ -172,6 +184,7 @@ def get_watchlist(
             "period_start_price": round(start_price, 2),
             "period_return_pct": round(period_return_pct, 2),
             "cagr_pct": round(cagr_pct, 2),
+            "alpha_pct": alpha_pct,
             "high_52w": round(hi_lo[0], 2) if hi_lo[0] else None,
             "low_52w": round(hi_lo[1], 2) if hi_lo[1] else None,
         }
