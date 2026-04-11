@@ -120,10 +120,11 @@
   /* ── Summary Cards ── */
   .summary-cards {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 20px;
     margin-bottom: 28px;
   }
+  .sector-card::before { background: #a78bfa; }
   .summary-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -316,6 +317,39 @@
     padding: 20px;
     margin-bottom: 24px;
   }
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 8px;
+  }
+  .chart-mode-toggle {
+    display: flex;
+    gap: 4px;
+    background: var(--base);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .chart-mode-btn {
+    font-family: var(--sans);
+    background: transparent;
+    color: var(--text-muted);
+    border: none;
+    border-radius: 6px;
+    padding: 5px 14px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+  }
+  .chart-mode-btn:hover { color: var(--text-secondary); }
+  .chart-mode-btn.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
   .chart-meta {
     font-family: var(--mono);
     font-size: 0.78rem;
@@ -402,6 +436,22 @@
     color: var(--text-muted);
     margin-left: 8px;
   }
+
+  .table-search {
+    font-family: var(--mono);
+    background: var(--base);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 0.75rem;
+    outline: none;
+    margin-left: auto;
+    width: 160px;
+    transition: border-color 0.2s, width 0.2s;
+  }
+  .table-search:focus { border-color: var(--accent); width: 200px; }
+  .table-search::placeholder { color: var(--text-muted); }
 
   .table-wrapper {
     max-height: 600px;
@@ -595,9 +645,53 @@
     margin-top: 4px;
   }
 
+  /* ── Heatmap ── */
+  .heatmap-panel { display: none; }
+  .heatmap-panel.active { display: block; }
+  .heatmap-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+  }
+  .heatmap-tile {
+    border-radius: 12px;
+    padding: 16px 14px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    text-align: center;
+    border: 1px solid transparent;
+  }
+  .heatmap-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    border-color: var(--border-light);
+  }
+  .heatmap-ticker {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .heatmap-return {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: rgba(255,255,255,0.9);
+  }
+  .heatmap-name {
+    font-size: 0.6rem;
+    color: rgba(255,255,255,0.5);
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   @media (max-width: 900px) {
     .compare-grid { grid-template-columns: 1fr; }
     .compare-summary-row { grid-template-columns: 1fr; }
+    .heatmap-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
   }
 
   /* ── Loading Pulse ── */
@@ -611,7 +705,7 @@
   @media (max-width: 900px) {
     .page-container { padding: 0 16px 32px; }
     .top-nav { padding: 0 16px; }
-    .summary-cards { grid-template-columns: 1fr; }
+    .summary-cards { grid-template-columns: 1fr 1fr; }
     .controls-row { flex-direction: column; align-items: stretch; }
     .time-filters { flex-wrap: wrap; justify-content: center; }
     .chart-panel, .drilldown-panel, .table-panel { border-radius: 12px; }
@@ -666,11 +760,16 @@
       <div class="sc-value loading-text" id="worstValue">--</div>
       <div class="sc-sub" id="worstSub">&nbsp;</div>
     </div>
+    <div class="summary-card sector-card">
+      <div class="sc-label" style="color: #a78bfa;">Sectors</div>
+      <div id="sectorDonut" style="width:100%;height:160px;"></div>
+    </div>
   </div>
 
   <div class="view-tabs" id="viewTabs">
     <button class="view-tab active" data-view="stocks">Stocks</button>
     <button class="view-tab" data-view="compare">Compare Groups</button>
+    <button class="view-tab" data-view="heatmap">Heatmap</button>
   </div>
 
   <div class="controls-row">
@@ -699,7 +798,13 @@
   <!-- ── Stocks View ── -->
   <div class="stocks-view" id="stocksView">
     <div class="chart-panel">
-      <div class="chart-meta" id="chartMeta"></div>
+      <div class="chart-header">
+        <div class="chart-meta" id="chartMeta"></div>
+        <div class="chart-mode-toggle">
+          <button class="chart-mode-btn active" data-mode="absolute">Absolute</button>
+          <button class="chart-mode-btn" data-mode="vs-spy">vs S&P 500</button>
+        </div>
+      </div>
       <div class="chart-area" id="chartOverlay"></div>
     </div>
 
@@ -720,6 +825,7 @@
         <button class="table-ctrl-btn" id="selectAllBtn">Select All</button>
         <button class="table-ctrl-btn" id="unselectAllBtn">Unselect All</button>
         <span class="table-ctrl-count" id="selectionCount"></span>
+        <input type="text" class="table-search" id="tableSearch" placeholder="Filter stocks..." aria-label="Filter stocks">
       </div>
       <div class="table-wrapper">
         <table class="data-table" id="stockTable">
@@ -745,6 +851,11 @@
   <div class="compare-panel" id="comparePanel">
     <div class="compare-summary-row" id="compareSummaryRow"></div>
     <div class="compare-grid" id="compareGrid"></div>
+  </div>
+
+  <!-- ── Heatmap View ── -->
+  <div class="heatmap-panel" id="heatmapPanel">
+    <div class="heatmap-grid" id="heatmapGrid"></div>
   </div>
 
 </div>
@@ -774,6 +885,7 @@
   var selectedGroup = '';
   var activePreset = '1Y';
   var activeView = 'stocks';
+  var chartMode = 'absolute'; // 'absolute' or 'vs-spy'
   var drilldownTicker = null;
   var sortCol = 'period_return_pct';
   var sortDir = 'desc';
@@ -1086,8 +1198,9 @@
         renderTable();
         loadPricesAndRender();
 
-        // Re-render comparison if that view is active
+        // Re-render active non-stocks view
         if (activeView === 'compare') renderGroupComparison();
+        if (activeView === 'heatmap') renderHeatmap();
       })
       .catch(function(err) {
         showError('Failed to load investment data: ' + err.message);
@@ -1100,8 +1213,19 @@
       return;
     }
 
+    // Always include benchmarks so they appear regardless of group/selection
+    var benchmarkTickers = [];
+    if (watchlistData && watchlistData.stocks) {
+      watchlistData.stocks.forEach(function(s) {
+        if (s.is_benchmark && selectedTickers.indexOf(s.ticker) === -1) {
+          benchmarkTickers.push(s.ticker);
+        }
+      });
+    }
+    var allRequestTickers = selectedTickers.concat(benchmarkTickers);
+
     var params = getDateParams();
-    params += (params ? '&' : '?') + 'tickers=' + selectedTickers.join(',') + '&normalize=true';
+    params += (params ? '&' : '?') + 'tickers=' + allRequestTickers.join(',') + '&normalize=true';
 
     fetch('/api/investments/prices' + params)
       .then(function(r) { return r.json(); })
@@ -1150,6 +1274,59 @@
     worstSubEl.style.color = '#ef4444';
   }
 
+  /* ── Sector Donut ── */
+  var SECTOR_COLORS = {
+    'Technology': '#3b82f6',
+    'Consumer': '#f59e0b',
+    'Healthcare': '#10b981',
+    'Energy': '#f97316',
+    'Materials': '#a78bfa',
+    'Industrials': '#ec4899',
+    'Utilities': '#06b6d4',
+    'Financials': '#84cc16'
+  };
+
+  function renderSectorDonut(stocks) {
+    var visible = stocks.filter(function(s) {
+      return !s.is_benchmark && selectedTickers.indexOf(s.ticker) !== -1 && s.sector;
+    });
+
+    var sectorCounts = {};
+    visible.forEach(function(s) {
+      sectorCounts[s.sector] = (sectorCounts[s.sector] || 0) + 1;
+    });
+
+    var labels = Object.keys(sectorCounts);
+    var values = labels.map(function(l) { return sectorCounts[l]; });
+    var colors = labels.map(function(l) { return SECTOR_COLORS[l] || '#64748b'; });
+
+    if (labels.length === 0) {
+      Plotly.purge($('sectorDonut'));
+      return;
+    }
+
+    Plotly.newPlot($('sectorDonut'), [{
+      labels: labels,
+      values: values,
+      type: 'pie',
+      hole: 0.55,
+      marker: { colors: colors, line: { color: '#141b2d', width: 2 } },
+      textposition: 'none',
+      hovertemplate: '<b>%{label}</b><br>%{value} stocks (%{percent})<extra></extra>',
+      sort: false
+    }], {
+      paper_bgcolor: 'transparent',
+      plot_bgcolor: 'transparent',
+      font: { color: '#94a3b8', family: 'DM Sans, sans-serif' },
+      margin: { t: 0, b: 0, l: 0, r: 0 },
+      showlegend: false,
+      hoverlabel: {
+        bgcolor: '#1e293b', bordercolor: '#2a3650',
+        font: { family: 'DM Sans, sans-serif', color: '#f1f5f9', size: 12 }
+      }
+    }, { responsive: true, displayModeBar: false });
+  }
+
   /* ── Overlay Chart ── */
   function renderOverlayChart() {
     if (!pricesData || !pricesData.series) return;
@@ -1164,6 +1341,16 @@
 
     var BENCHMARK_STYLES = { 'SPY': { color: '#ffffff', label: 'S&P 500' }, 'QQQ': { color: '#a0aec0', label: 'Nasdaq 100' } };
 
+    // Build SPY date->value map for relative mode
+    var spySeries = pricesData.series['SPY'];
+    var spyMap = {};
+    if (spySeries) {
+      for (var si = 0; si < spySeries.dates.length; si++) {
+        spyMap[spySeries.dates[si]] = spySeries.values[si];
+      }
+    }
+    var isRelative = chartMode === 'vs-spy' && spySeries;
+
     var traces = [];
     var stockSeries = [];
     var i = 0;
@@ -1173,10 +1360,20 @@
       if (!pricesData.series.hasOwnProperty(ticker)) continue;
       if (benchmarkSet[ticker]) continue;
       var s = pricesData.series[ticker];
-      stockSeries.push(s);
+
+      var yValues = s.values;
+      if (isRelative) {
+        // alpha = stock_normalized - spy_normalized + 100
+        yValues = s.dates.map(function(d, idx) {
+          var spyVal = spyMap[d];
+          return spyVal != null ? Math.round((s.values[idx] - spyVal + 100) * 100) / 100 : s.values[idx];
+        });
+      }
+
+      stockSeries.push({ dates: s.dates, values: yValues });
       traces.push({
         x: s.dates,
-        y: s.values,
+        y: yValues,
         type: 'scatter',
         mode: 'lines',
         name: ticker,
@@ -1187,23 +1384,25 @@
       i++;
     }
 
-    // Benchmark traces as dashed reference lines
-    for (var bTicker in pricesData.series) {
-      if (!pricesData.series.hasOwnProperty(bTicker)) continue;
-      if (!benchmarkSet[bTicker]) continue;
-      var bs = pricesData.series[bTicker];
-      var bStyle = BENCHMARK_STYLES[bTicker] || { color: '#94a3b8', label: bTicker };
-      traces.push({
-        x: bs.dates,
-        y: bs.values,
-        type: 'scatter',
-        mode: 'lines',
-        name: bStyle.label,
-        line: { color: bStyle.color, width: 2.5, dash: 'dash' },
-        opacity: 0.7,
-        hoverlabel: { namelength: -1 },
-        hovertemplate: '<b>' + bStyle.label + '</b>: %{y:.2f}<extra></extra>'
-      });
+    // Benchmark traces — hide SPY in relative mode (it would be flat at 100)
+    if (!isRelative) {
+      for (var bTicker in pricesData.series) {
+        if (!pricesData.series.hasOwnProperty(bTicker)) continue;
+        if (!benchmarkSet[bTicker]) continue;
+        var bs = pricesData.series[bTicker];
+        var bStyle = BENCHMARK_STYLES[bTicker] || { color: '#94a3b8', label: bTicker };
+        traces.push({
+          x: bs.dates,
+          y: bs.values,
+          type: 'scatter',
+          mode: 'lines',
+          name: bStyle.label,
+          line: { color: bStyle.color, width: 2.5, dash: 'dash' },
+          opacity: 0.7,
+          hoverlabel: { namelength: -1 },
+          hovertemplate: '<b>' + bStyle.label + '</b>: %{y:.2f}<extra></extra>'
+        });
+      }
     }
 
     // Compute average return for the label above the chart (exclude benchmarks)
@@ -1216,7 +1415,9 @@
       }
     }
 
-    var layout = baseLayout('Normalized Return (rebased to 100)', {
+    var chartTitle = isRelative ? 'Performance vs S&P 500 (above 100 = outperforming)' : 'Normalized Return (rebased to 100)';
+
+    var layout = baseLayout(chartTitle, {
       yaxis: {
         gridcolor: '#1e293b', linecolor: '#1e293b',
         tickfont: { color: '#94a3b8', family: 'Space Mono, monospace', size: 11 },
@@ -1255,20 +1456,40 @@
       Plotly.restyle(el, update);
     });
 
-    // Update avg label above chart
+    // Update meta label above chart: avg + benchmark returns
     var metaEl = $('chartMeta');
-    if (avgReturnPct !== null) {
-      var color = avgReturnPct >= 0 ? '#10b981' : '#ef4444';
-      clearChildren(metaEl);
-      metaEl.appendChild(document.createTextNode(allSeries.length + ' stocks'));
+    clearChildren(metaEl);
+
+    function addMetaItem(text, color) {
       var sep = createEl('span', null, ' \u00b7 ');
       sep.style.color = 'var(--border-light)';
-      metaEl.appendChild(sep);
-      var avgSpan = createEl('span', null, 'avg ' + fmtPct(avgReturnPct));
-      avgSpan.style.color = color;
-      metaEl.appendChild(avgSpan);
+      if (metaEl.childNodes.length > 0) metaEl.appendChild(sep);
+      var span = createEl('span', null, text);
+      if (color) span.style.color = color;
+      metaEl.appendChild(span);
+    }
+
+    if (stockSeries.length > 0) {
+      addMetaItem(stockSeries.length + ' stocks', 'var(--text-muted)');
+    }
+    if (avgReturnPct !== null) {
+      addMetaItem('avg ' + fmtPct(avgReturnPct), avgReturnPct >= 0 ? '#10b981' : '#ef4444');
+    }
+
+    // Add benchmark returns (skip in relative mode)
+    if (!isRelative) {
+      for (var bmTicker in pricesData.series) {
+        if (!pricesData.series.hasOwnProperty(bmTicker)) continue;
+        if (!benchmarkSet[bmTicker]) continue;
+        var bmSeries = pricesData.series[bmTicker];
+        if (bmSeries.values.length > 0) {
+          var bmReturn = bmSeries.values[bmSeries.values.length - 1] - 100;
+          var bmStyle = BENCHMARK_STYLES[bmTicker] || { color: '#94a3b8', label: bmTicker };
+          addMetaItem(bmStyle.label + ' ' + fmtPct(bmReturn), bmStyle.color);
+        }
+      }
     } else {
-      metaEl.textContent = '';
+      addMetaItem('vs S&P 500', '#ffffff');
     }
   }
 
@@ -1276,8 +1497,9 @@
   function renderTable() {
     if (!watchlistData) return;
 
-    // Recompute summary cards and selection count to match the current selection
+    // Recompute summary cards, sector donut, and selection count
     updateSummaryCards(watchlistData.stocks);
+    renderSectorDonut(watchlistData.stocks);
     updateSelectionCount();
 
     var stocks = watchlistData.stocks.slice();
@@ -1285,6 +1507,15 @@
     stocks = stocks.filter(function(s) {
       return selectedTickers.indexOf(s.ticker) !== -1;
     });
+
+    // Apply search filter
+    var searchTerm = ($('tableSearch').value || '').toLowerCase().trim();
+    if (searchTerm) {
+      stocks = stocks.filter(function(s) {
+        return s.ticker.toLowerCase().indexOf(searchTerm) !== -1 ||
+               s.name.toLowerCase().indexOf(searchTerm) !== -1;
+      });
+    }
 
     stocks.sort(function(a, b) {
       var av = a[sortCol], bv = b[sortCol];
@@ -1387,6 +1618,59 @@
     });
   });
 
+  /* ── Table search ── */
+  $('tableSearch').addEventListener('input', function() { renderTable(); });
+
+  /* ── Heatmap rendering ── */
+  function renderHeatmap() {
+    if (!watchlistData) return;
+    var grid = $('heatmapGrid');
+    clearChildren(grid);
+
+    var stocks = watchlistData.stocks.filter(function(s) { return !s.is_benchmark; });
+    stocks.sort(function(a, b) { return b.period_return_pct - a.period_return_pct; });
+
+    // Determine color scale range
+    var returns = stocks.map(function(s) { return s.period_return_pct; });
+    var maxAbs = Math.max(Math.abs(Math.min.apply(null, returns)), Math.abs(Math.max.apply(null, returns)), 1);
+
+    stocks.forEach(function(s) {
+      var tile = createEl('div', 'heatmap-tile');
+      var ratio = Math.min(Math.abs(s.period_return_pct) / maxAbs, 1);
+      var intensity = 0.15 + ratio * 0.65; // 0.15 to 0.8 opacity range
+
+      if (s.period_return_pct >= 0) {
+        tile.style.background = 'rgba(16, 185, 129, ' + intensity + ')';
+      } else {
+        tile.style.background = 'rgba(239, 68, 68, ' + intensity + ')';
+      }
+
+      tile.appendChild(createEl('div', 'heatmap-ticker', s.ticker));
+      tile.appendChild(createEl('div', 'heatmap-return', fmtPct(s.period_return_pct)));
+      tile.appendChild(createEl('div', 'heatmap-name', s.name));
+
+      tile.addEventListener('click', function() {
+        // Switch to stocks view and show drilldown
+        document.querySelector('.view-tab[data-view="stocks"]').click();
+        showDrilldown(s.ticker);
+      });
+
+      grid.appendChild(tile);
+    });
+  }
+
+  /* ── Chart mode toggle ── */
+  document.querySelectorAll('.chart-mode-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var mode = btn.getAttribute('data-mode');
+      if (mode === chartMode) return;
+      chartMode = mode;
+      document.querySelectorAll('.chart-mode-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      renderOverlayChart();
+    });
+  });
+
   /* ── Select / Unselect All ── */
   $('selectAllBtn').addEventListener('click', function() {
     selectedTickers = allTickers.slice();
@@ -1425,16 +1709,24 @@
       var comparePanel = $('comparePanel');
       var controlsRow = document.querySelector('.controls-row');
 
-      if (view === 'compare') {
-        stocksView.classList.add('hidden');
+      var heatmapPanel = $('heatmapPanel');
+
+      // Hide all views
+      stocksView.classList.add('hidden');
+      comparePanel.classList.remove('active');
+      heatmapPanel.classList.remove('active');
+      document.querySelector('.controls-left').style.display = '';
+
+      if (view === 'stocks') {
+        stocksView.classList.remove('hidden');
+      } else if (view === 'compare') {
         comparePanel.classList.add('active');
-        // Hide group/stock selectors but keep time filters visible
         document.querySelector('.controls-left').style.display = 'none';
         renderGroupComparison();
-      } else {
-        stocksView.classList.remove('hidden');
-        comparePanel.classList.remove('active');
-        document.querySelector('.controls-left').style.display = '';
+      } else if (view === 'heatmap') {
+        heatmapPanel.classList.add('active');
+        document.querySelector('.controls-left').style.display = 'none';
+        renderHeatmap();
       }
     });
   });

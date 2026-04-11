@@ -89,7 +89,7 @@ def get_watchlist(
             text("""
                 WITH period_bounds AS (
                     SELECT
-                        w.id, w.ticker, w.name, w.is_benchmark,
+                        w.id, w.ticker, w.name, w.is_benchmark, w.sector,
                         FIRST_VALUE(dp.close) OVER (
                             PARTITION BY w.id ORDER BY dp.date ASC
                         ) as start_price,
@@ -106,7 +106,7 @@ def get_watchlist(
                     WHERE w.active = true
                       AND dp.date BETWEEN :start AND :end
                 )
-                SELECT ticker, name, start_price, end_price, first_date, last_date, is_benchmark
+                SELECT ticker, name, start_price, end_price, first_date, last_date, is_benchmark, sector
                 FROM period_bounds
                 WHERE rn = 1
             """),
@@ -165,6 +165,7 @@ def get_watchlist(
             "ticker": r.ticker,
             "name": r.name,
             "is_benchmark": r.is_benchmark,
+            "sector": r.sector,
             "current_price": round(end_price, 2),
             "latest_close": round(latest[0], 2),
             "latest_close_date": latest[1],
