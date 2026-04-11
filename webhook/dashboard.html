@@ -540,6 +540,7 @@
 <nav class="top-nav">
   <a href="/dashboard/fitness" class="nav-tab active">Fitness</a>
   <a href="/dashboard/finance" class="nav-tab">Finance</a>
+  <a href="/dashboard/investments" class="nav-tab">Investments</a>
   <a href="/dashboard/system" class="nav-tab">System</a>
 </nav>
 
@@ -919,6 +920,10 @@
       type: 'bar',
       marker: { color: '#3b82f6', opacity: 0.85 },
       text: hoverText,
+      textposition: 'inside',
+      textangle: 0,
+      insidetextanchor: 'middle',
+      textfont: { color: '#ffffff', size: 11 },
       hovertemplate: 'Week of %{x}<br>%{y:.1f} mi<br>%{text}<extra></extra>'
     }], baseLayout('Mileage', 'Week', 'Miles'), plotConfig);
 

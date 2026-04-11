@@ -10,6 +10,7 @@ MAX_DATE_SPAN_DAYS = 5 * 365  # 5 years
 def _parse_date_range(
     start: str | None,
     end: str | None,
+    max_days: int = MAX_DATE_SPAN_DAYS,
 ) -> tuple[date, date]:
     """Parse and validate date range query params.
 
@@ -37,8 +38,8 @@ def _parse_date_range(
     if start_date > end_date:
         raise HTTPException(400, detail={"code": 400, "message": "start must be before end", "hint": "Provide dates in YYYY-MM-DD format with start <= end"})
 
-    if (end_date - start_date).days > MAX_DATE_SPAN_DAYS:
-        raise HTTPException(400, detail={"code": 400, "message": f"Date range exceeds {MAX_DATE_SPAN_DAYS} days maximum", "hint": "Use a shorter date range"})
+    if (end_date - start_date).days > max_days:
+        raise HTTPException(400, detail={"code": 400, "message": f"Date range exceeds {max_days} days maximum", "hint": "Use a shorter date range"})
 
     return start_date, end_date
 

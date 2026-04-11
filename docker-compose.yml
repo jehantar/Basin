@@ -44,6 +44,7 @@ services:
       TELLER_KEY_PATH: /certs/teller/private_key.pem
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      NASDAQ_DATA_LINK_API_KEY: ${NASDAQ_DATA_LINK_API_KEY}
 
   webhook:
     build:
@@ -63,6 +64,7 @@ services:
       DATABASE_URL: postgresql://basin:${BASIN_PG_PASSWORD}@postgres:5432/basin
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      HEALTHKIT_WEBHOOK_KEY: ${HEALTHKIT_WEBHOOK_KEY}
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 30s
