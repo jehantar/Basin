@@ -361,24 +361,17 @@
   .splits-toggle:hover { background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.4); }
   .splits-toggle.open { background: rgba(59,130,246,0.25); border-color: var(--color-running); }
   .splits-row td { padding: 12px 16px !important; background: rgba(59,130,246,0.03) !important; }
-  .splits-detail { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: start; }
-  .splits-chart { max-width: 600px; }
-  .route-map { width: 280px; height: 220px; }
-  .route-map svg { width: 100%; height: 100%; }
-  .route-map svg path { fill: none; stroke: var(--color-running); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-  .route-map svg circle { fill: var(--accent); }
-  .route-map svg .end-dot { fill: var(--alert); }
+  .splits-chart { max-width: 500px; }
   .split-bar {
     display: grid;
-    grid-template-columns: 40px 1fr 50px 120px;
+    grid-template-columns: 40px 8px 50px 120px;
     align-items: center;
     gap: 8px;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
   }
   .split-label { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); }
-  .split-track { height: 16px; background: rgba(255,255,255,0.04); border-radius: 3px; overflow: hidden; }
-  .split-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
-  .split-pace { font-family: var(--mono); font-size: 0.78rem; color: var(--text-primary); text-align: right; }
+  .split-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .split-pace { font-family: var(--mono); font-size: 0.78rem; color: var(--text-primary); }
   .split-meta { font-size: 0.7rem; color: var(--text-muted); }
 
   /* ── Empty State ── */
@@ -977,71 +970,6 @@
     }
   }
 
-  function decodePolyline(encoded) {
-    var points = [], lat = 0, lng = 0, i = 0;
-    while (i < encoded.length) {
-      var b, shift = 0, result = 0;
-      do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-      lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-      shift = 0; result = 0;
-      do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-      lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-      points.push([lat / 1e5, lng / 1e5]);
-    }
-    return points;
-  }
-
-  function renderRouteMap(polyline) {
-    var points = decodePolyline(polyline);
-    if (points.length < 2) return null;
-
-    var lats = points.map(function(p) { return p[0]; });
-    var lngs = points.map(function(p) { return p[1]; });
-    var minLat = Math.min.apply(null, lats), maxLat = Math.max.apply(null, lats);
-    var minLng = Math.min.apply(null, lngs), maxLng = Math.max.apply(null, lngs);
-
-    var pad = 12, w = 280, h = 220;
-    var cosLat = Math.cos((minLat + maxLat) / 2 * Math.PI / 180);
-    var rangeX = (maxLng - minLng) * cosLat || 0.0001;
-    var rangeY = (maxLat - minLat) || 0.0001;
-    var scale = Math.min((w - pad * 2) / rangeX, (h - pad * 2) / rangeY);
-
-    function tx(lng) { return pad + (lng - minLng) * cosLat * scale; }
-    function ty(lat) { return h - pad - (lat - minLat) * scale; }
-
-    var pathD = points.map(function(p, i) {
-      return (i === 0 ? 'M' : 'L') + tx(p[1]).toFixed(1) + ',' + ty(p[0]).toFixed(1);
-    }).join(' ');
-
-    // Build SVG using DOM methods (safe, no innerHTML)
-    var ns = 'http://www.w3.org/2000/svg';
-    var div = document.createElement('div');
-    div.className = 'route-map';
-    var svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
-
-    var path = document.createElementNS(ns, 'path');
-    path.setAttribute('d', pathD);
-    svg.appendChild(path);
-
-    var s = points[0], e = points[points.length - 1];
-    var startDot = document.createElementNS(ns, 'circle');
-    startDot.setAttribute('cx', tx(s[1]).toFixed(1));
-    startDot.setAttribute('cy', ty(s[0]).toFixed(1));
-    startDot.setAttribute('r', '4');
-    svg.appendChild(startDot);
-
-    var endDot = document.createElementNS(ns, 'circle');
-    endDot.setAttribute('cx', tx(e[1]).toFixed(1));
-    endDot.setAttribute('cy', ty(e[0]).toFixed(1));
-    endDot.setAttribute('r', '4');
-    endDot.setAttribute('class', 'end-dot');
-    svg.appendChild(endDot);
-
-    div.appendChild(svg);
-    return div;
-  }
-
   function renderSplitsChart(splits) {
     var container = document.createElement('div');
     container.className = 'splits-chart';
@@ -1063,18 +991,11 @@
       label.className = 'split-label';
       label.textContent = 'Mi ' + s.mile;
 
-      var track = document.createElement('div');
-      track.className = 'split-track';
-      var fill = document.createElement('div');
-      fill.className = 'split-fill';
-      // Scale bar: fastest = 100%, slowest = 40%
+      var dot = document.createElement('div');
+      dot.className = 'split-dot';
       var t = (paceSecs[i] - minPace) / range;
-      var pct = 100 - (t * 60);
-      fill.style.width = pct + '%';
-      // Color: green (fast) → amber (mid) → red (slow)
       var hue = 140 - t * 140; // 140=green, 0=red
-      fill.style.background = 'hsl(' + hue + ', 70%, 50%)';
-      track.appendChild(fill);
+      dot.style.background = 'hsl(' + hue + ', 70%, 50%)';
 
       var pace = document.createElement('span');
       pace.className = 'split-pace';
@@ -1091,7 +1012,7 @@
       meta.textContent = metaParts.join(' \u00b7 ');
 
       bar.appendChild(label);
-      bar.appendChild(track);
+      bar.appendChild(dot);
       bar.appendChild(pace);
       bar.appendChild(meta);
       container.appendChild(bar);
@@ -1214,14 +1135,7 @@
           detailRow.className = 'splits-row';
           var detailTd = document.createElement('td');
           detailTd.colSpan = 10;
-          var wrapper = document.createElement('div');
-          wrapper.className = 'splits-detail';
-          wrapper.appendChild(renderSplitsChart(r.splits));
-          if (r.polyline) {
-            var map = renderRouteMap(r.polyline);
-            if (map) wrapper.appendChild(map);
-          }
-          detailTd.appendChild(wrapper);
+          detailTd.appendChild(renderSplitsChart(r.splits));
           detailRow.appendChild(detailTd);
           tr.after(detailRow);
         });
