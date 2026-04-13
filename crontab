@@ -17,6 +17,9 @@
 # Intervals.icu — daily at 6:10 AM UTC (training load, pace/HR curves)
 10 6 * * * set -a; . /etc/basin.env; set +a; cd /app && python -m collectors.intervals_icu >> /var/log/basin/intervals_icu.log 2>&1
 
+# Strava — daily at 6:15 AM UTC (activity elevation, GPS, HR)
+15 6 * * * set -a; . /etc/basin.env; set +a; cd /app && python -m collectors.strava >> /var/log/basin/strava.log 2>&1
+
 # Daily Postgres backup at 2:00 AM UTC
 0 2 * * * set -a; . /etc/basin.env; set +a; /app/scripts/backup.sh >> /var/log/basin/backup.log 2>&1
 

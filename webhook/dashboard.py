@@ -65,7 +65,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
                    round(avg(speed.value)::numeric, 2) as avg_speed,
                    round(avg(power.value)::numeric, 0) as avg_power,
                    w.start_time, w.end_time,
-                   w.elevation_m
+                   COALESCE(w.elevation_m, sa.total_elevation_gain_m) as elevation_m
             FROM healthkit.workouts w
             LEFT JOIN healthkit.metrics speed
               ON speed.metric_type = 'running_speed'
@@ -73,9 +73,13 @@ def get_running_data(start: str | None = None, end: str | None = None):
             LEFT JOIN healthkit.metrics power
               ON power.metric_type = 'running_power'
               AND power.recorded_at BETWEEN w.start_time AND w.end_time
+            LEFT JOIN strava.activities sa
+              ON sa.sport_type = 'Run'
+              AND sa.start_date BETWEEN w.start_time - interval '5 minutes'
+                  AND w.start_time + interval '5 minutes'
             WHERE w.workout_type = 'Running'
               AND (w.start_time AT TIME ZONE 'America/Los_Angeles')::date BETWEEN :start AND :end
-            GROUP BY w.id, w.start_time, w.end_time, w.duration_sec
+            GROUP BY w.id, w.start_time, w.end_time, w.duration_sec, sa.total_elevation_gain_m
             ORDER BY w.start_time, (w.source_name = 'Health Auto Export') ASC
         """), {"start": start_date, "end": end_date}).fetchall()
 
@@ -98,8 +102,8 @@ def get_running_data(start: str | None = None, end: str | None = None):
             duration_min = float(row[2]) if row[2] else None
             speed = float(row[3]) if row[3] else None
             avg_power = float(row[4]) if row[4] else None
-            elevation_m = float(row[7]) if row[7] else None
-            elevation_ft = round(elevation_m / 0.3048) if elevation_m else None
+            elevation_m = float(row[7]) if row[7] is not None else None
+            elevation_ft = round(elevation_m / 0.3048) if elevation_m is not None else None
             distance_mi = round(speed * (duration_min / 60.0), 2) if speed and duration_min else None
             # Cadence = speed (m/min) / stride (m) = steps per minute
             stride_m = stride_by_id.get(w_id)

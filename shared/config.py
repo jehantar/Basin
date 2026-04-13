@@ -13,6 +13,8 @@ class Config:
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     nasdaq_data_link_api_key: str = ""
+    strava_client_id: str = ""
+    strava_client_secret: str = ""
 
 
 def load_config() -> Config:
@@ -24,4 +26,6 @@ def load_config() -> Config:
         telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
         nasdaq_data_link_api_key=os.environ.get("NASDAQ_DATA_LINK_API_KEY", ""),
+        strava_client_id=os.environ.get("STRAVA_CLIENT_ID", ""),
+        strava_client_secret=os.environ.get("STRAVA_CLIENT_SECRET", ""),
     )

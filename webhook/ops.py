@@ -17,6 +17,7 @@ COLLECTOR_SCHEDULES = {
     "healthkit": "Daily 6:05 AM UTC",
     "nasdaq": "Daily 1:30 AM UTC",
     "intervals_icu": "Daily 6:10 AM UTC",
+    "strava": "Daily 6:15 AM UTC",
 }
 
 

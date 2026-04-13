@@ -10,7 +10,7 @@ from shared.db import get_session
 
 logger = logging.getLogger("basin.cli")
 
-COLLECTORS = ["healthkit", "hevy", "teller"]
+COLLECTORS = ["healthkit", "hevy", "teller", "intervals_icu", "strava"]
 
 
 def _time_ago(dt: datetime) -> str:
