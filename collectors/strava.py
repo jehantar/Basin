@@ -1,5 +1,6 @@
 """Strava collector — fetches activity data (elevation, GPS, HR) via Strava API."""
 
+import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -142,6 +143,7 @@ class StravaCollector(BaseCollector):
                 "average_cadence": detail.get("average_cadence"),
                 "map_polyline": (detail.get("map") or {}).get("summary_polyline"),
                 "calories": detail.get("calories"),
+                "splits": json.dumps(detail.get("splits_standard")) if detail.get("splits_standard") else None,
             })
 
         count = bulk_upsert(

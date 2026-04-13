@@ -635,12 +635,15 @@
           <thead>
             <tr>
               <th>Date</th>
+              <th>Name</th>
               <th>Distance</th>
               <th>Pace</th>
-              <th>Speed</th>
               <th>Duration</th>
+              <th>Elev</th>
+              <th>Max HR</th>
               <th>Cadence</th>
-              <th>Avg Power</th>
+              <th>Cal</th>
+              <th>Splits</th>
             </tr>
           </thead>
           <tbody id="runsBody"></tbody>
@@ -998,6 +1001,11 @@
       tdDate.textContent = fmtDate(r.date);
       tr.appendChild(tdDate);
 
+      var tdName = document.createElement('td');
+      tdName.textContent = r.name || '---';
+      tdName.style.color = r.name ? 'var(--text-primary)' : 'var(--text-muted)';
+      tr.appendChild(tdName);
+
       var tdDist = document.createElement('td');
       tdDist.textContent = r.distance_mi != null ? r.distance_mi.toFixed(2) + ' mi' : '---';
       tr.appendChild(tdDist);
@@ -1006,21 +1014,37 @@
       tdPace.textContent = r.avg_speed_mph != null ? speedToPace(r.avg_speed_mph) + ' /mi' : '---';
       tr.appendChild(tdPace);
 
-      var tdSpeed = document.createElement('td');
-      tdSpeed.textContent = r.avg_speed_mph != null ? r.avg_speed_mph.toFixed(2) + ' mi/hr' : '---';
-      tr.appendChild(tdSpeed);
-
       var tdDur = document.createElement('td');
       tdDur.textContent = r.duration_min != null ? r.duration_min.toFixed(1) + ' min' : '---';
       tr.appendChild(tdDur);
+
+      var tdElev = document.createElement('td');
+      tdElev.textContent = r.elevation_ft != null ? r.elevation_ft + ' ft' : '---';
+      tr.appendChild(tdElev);
+
+      var tdMaxHR = document.createElement('td');
+      tdMaxHR.textContent = r.max_hr != null ? Math.round(r.max_hr) + ' bpm' : '---';
+      tr.appendChild(tdMaxHR);
 
       var tdCadence = document.createElement('td');
       tdCadence.textContent = r.cadence_spm != null ? r.cadence_spm + ' spm' : '---';
       tr.appendChild(tdCadence);
 
-      var tdPower = document.createElement('td');
-      tdPower.textContent = r.avg_power != null ? r.avg_power + ' W' : '---';
-      tr.appendChild(tdPower);
+      var tdCal = document.createElement('td');
+      tdCal.textContent = r.calories != null ? r.calories : '---';
+      tr.appendChild(tdCal);
+
+      var tdSplits = document.createElement('td');
+      if (r.splits && r.splits.length > 0) {
+        var splitsText = r.splits.map(function(s) { return s.pace; }).join(' | ');
+        tdSplits.textContent = splitsText;
+        tdSplits.style.fontFamily = 'var(--mono)';
+        tdSplits.style.fontSize = '0.78rem';
+        tdSplits.style.whiteSpace = 'nowrap';
+      } else {
+        tdSplits.textContent = '---';
+      }
+      tr.appendChild(tdSplits);
 
       tbody.appendChild(tr);
     });

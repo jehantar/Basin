@@ -55,8 +55,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
     start_date, end_date = _parse_date_range(start, end)
 
     with get_session() as session:
-        # Single set-based query: join workouts with speed/power metrics
-        # using each workout's time window, avoiding O(N) per-run queries
+        # Core query: HealthKit workouts with speed/power metrics
         rows = session.execute(text("""
             SELECT DISTINCT ON (w.start_time)
                    w.id,
@@ -65,7 +64,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
                    round(avg(speed.value)::numeric, 2) as avg_speed,
                    round(avg(power.value)::numeric, 0) as avg_power,
                    w.start_time, w.end_time,
-                   COALESCE(w.elevation_m, sa.total_elevation_gain_m) as elevation_m
+                   w.elevation_m
             FROM healthkit.workouts w
             LEFT JOIN healthkit.metrics speed
               ON speed.metric_type = 'running_speed'
@@ -73,17 +72,30 @@ def get_running_data(start: str | None = None, end: str | None = None):
             LEFT JOIN healthkit.metrics power
               ON power.metric_type = 'running_power'
               AND power.recorded_at BETWEEN w.start_time AND w.end_time
-            LEFT JOIN strava.activities sa
-              ON sa.sport_type = 'Run'
-              AND sa.start_date BETWEEN w.start_time - interval '5 minutes'
-                  AND w.start_time + interval '5 minutes'
             WHERE w.workout_type = 'Running'
               AND (w.start_time AT TIME ZONE 'America/Los_Angeles')::date BETWEEN :start AND :end
-            GROUP BY w.id, w.start_time, w.end_time, w.duration_sec, sa.total_elevation_gain_m
+            GROUP BY w.id, w.start_time, w.end_time, w.duration_sec
             ORDER BY w.start_time, (w.source_name = 'Health Auto Export') ASC
         """), {"start": start_date, "end": end_date}).fetchall()
 
-        # Get avg stride length per workout (to derive cadence = speed / stride)
+        # Strava enrichment: keyed by start_date truncated to minute
+        strava_rows = session.execute(text("""
+            SELECT name, start_date, total_elevation_gain_m, max_heartrate,
+                   calories, average_cadence, splits
+            FROM strava.activities
+            WHERE sport_type = 'Run'
+              AND (start_date AT TIME ZONE 'America/Los_Angeles')::date BETWEEN :start AND :end
+        """), {"start": start_date, "end": end_date}).fetchall()
+
+        # Index by truncated timestamp for fast lookup
+        strava_by_time = {}
+        for sr in strava_rows:
+            # Key on minute-level timestamp for fuzzy matching
+            key = sr[1].replace(second=0, microsecond=0) if sr[1] else None
+            if key:
+                strava_by_time[key] = sr
+
+        # Get avg stride length per workout (fallback cadence)
         stride_rows = session.execute(text("""
             SELECT w.id, round(avg(m.value)::numeric, 4) as avg_stride_m
             FROM healthkit.workouts w
@@ -95,6 +107,8 @@ def get_running_data(start: str | None = None, end: str | None = None):
         """), {"start": start_date, "end": end_date}).fetchall()
         stride_by_id = {r[0]: float(r[1]) for r in stride_rows}
 
+        import json
+
         runs = []
         for row in rows:
             w_id = row[0]
@@ -102,23 +116,70 @@ def get_running_data(start: str | None = None, end: str | None = None):
             duration_min = float(row[2]) if row[2] else None
             speed = float(row[3]) if row[3] else None
             avg_power = float(row[4]) if row[4] else None
-            elevation_m = float(row[7]) if row[7] is not None else None
-            elevation_ft = round(elevation_m / 0.3048) if elevation_m is not None else None
+            start_time = row[5]
+            hk_elevation_m = float(row[7]) if row[7] is not None else None
             distance_mi = round(speed * (duration_min / 60.0), 2) if speed and duration_min else None
-            # Cadence = speed (m/min) / stride (m) = steps per minute
+
+            # Match Strava activity by minute-level timestamp
+            strava = None
+            if start_time:
+                key = start_time.replace(second=0, microsecond=0)
+                strava = strava_by_time.get(key)
+                # Try +/- 1 minute if no exact match
+                if not strava:
+                    from datetime import timedelta
+                    for offset in [timedelta(minutes=1), timedelta(minutes=-1), timedelta(minutes=2), timedelta(minutes=-2)]:
+                        strava = strava_by_time.get(key + offset)
+                        if strava:
+                            break
+
+            run_name = strava[0] if strava else None
+            strava_elev = float(strava[2]) if strava and strava[2] is not None else None
+            max_hr = float(strava[3]) if strava and strava[3] else None
+            calories = round(float(strava[4])) if strava and strava[4] else None
+            strava_cadence = round(float(strava[5])) if strava and strava[5] else None
+            splits_json = strava[6] if strava else None
+
+            elevation_m = hk_elevation_m if hk_elevation_m is not None else strava_elev
+            elevation_ft = round(elevation_m / 0.3048) if elevation_m is not None else None
+
+            # Prefer Strava cadence; fall back to HealthKit-derived
             stride_m = stride_by_id.get(w_id)
-            cadence = None
+            hk_cadence = None
             if speed and stride_m and stride_m > 0:
                 speed_m_per_min = speed * 26.8224  # mph to m/min
-                cadence = round(speed_m_per_min / stride_m)
+                hk_cadence = round(speed_m_per_min / stride_m)
+            cadence = strava_cadence or hk_cadence
+
+            # Parse splits into pace per mile
+            splits = None
+            if splits_json:
+                raw = splits_json if isinstance(splits_json, list) else json.loads(splits_json)
+                splits = []
+                for s in raw:
+                    avg_speed_mps = s.get("average_speed", 0)
+                    if avg_speed_mps and avg_speed_mps > 0:
+                        pace_sec_per_mi = 1609.344 / avg_speed_mps
+                        mins = int(pace_sec_per_mi) // 60
+                        secs = int(pace_sec_per_mi) % 60
+                        splits.append({
+                            "mile": s.get("split"),
+                            "pace": f"{mins}:{secs:02d}",
+                            "elevation_diff_m": s.get("elevation_difference"),
+                            "avg_hr": s.get("average_heartrate"),
+                        })
 
             runs.append({
                 "date": d,
+                "name": run_name,
                 "avg_speed_mph": speed,
                 "duration_min": duration_min,
                 "distance_mi": distance_mi,
                 "avg_power": avg_power,
                 "cadence_spm": cadence,
+                "max_hr": max_hr,
+                "calories": calories,
+                "splits": splits,
                 "elevation_ft": elevation_ft,
             })
 
