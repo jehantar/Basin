@@ -81,7 +81,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
         # Strava enrichment: keyed by start_date truncated to minute
         strava_rows = session.execute(text("""
             SELECT name, start_date, total_elevation_gain_m, max_heartrate,
-                   calories, average_cadence, splits
+                   calories, average_cadence, splits, map_polyline
             FROM strava.activities
             WHERE sport_type = 'Run'
               AND (start_date AT TIME ZONE 'America/Los_Angeles')::date BETWEEN :start AND :end
@@ -139,6 +139,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
             calories = round(float(strava[4])) if strava and strava[4] else None
             strava_cadence = round(float(strava[5])) if strava and strava[5] else None
             splits_json = strava[6] if strava else None
+            polyline = strava[7] if strava else None
 
             elevation_m = hk_elevation_m if hk_elevation_m is not None else strava_elev
             elevation_ft = round(elevation_m / 0.3048) if elevation_m is not None else None
@@ -181,6 +182,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
                 "calories": calories,
                 "splits": splits,
                 "elevation_ft": elevation_ft,
+                "polyline": polyline,
             })
 
         total_runs = len(runs)
