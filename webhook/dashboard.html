@@ -309,7 +309,7 @@
   /* ── Data Tables ── */
   .runs-table-wrapper {
     margin-top: 20px;
-    max-height: 320px;
+    max-height: 500px;
     overflow-y: auto;
     border-radius: 12px;
     border: 1px solid var(--border);
@@ -345,6 +345,35 @@
   .runs-table tbody tr { transition: background 0.15s; }
   .runs-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
   .runs-table tbody tr:hover td { background: rgba(59,130,246,0.04); }
+
+  /* ── Splits ── */
+  .splits-toggle {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    background: rgba(59,130,246,0.12);
+    color: var(--color-running);
+    border: 1px solid rgba(59,130,246,0.25);
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .splits-toggle:hover { background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.4); }
+  .splits-toggle.open { background: rgba(59,130,246,0.25); border-color: var(--color-running); }
+  .splits-row td { padding: 12px 16px !important; background: rgba(59,130,246,0.03) !important; }
+  .splits-chart { max-width: 600px; }
+  .split-bar {
+    display: grid;
+    grid-template-columns: 40px 1fr 50px 120px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .split-label { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); }
+  .split-track { height: 16px; background: rgba(255,255,255,0.04); border-radius: 3px; overflow: hidden; }
+  .split-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .split-pace { font-family: var(--mono); font-size: 0.78rem; color: var(--text-primary); text-align: right; }
+  .split-meta { font-size: 0.7rem; color: var(--text-muted); }
 
   /* ── Empty State ── */
   .empty-state {
@@ -942,6 +971,64 @@
     }
   }
 
+  function renderSplitsChart(splits) {
+    var container = document.createElement('div');
+    container.className = 'splits-chart';
+
+    // Convert pace strings to seconds for bar scaling
+    var paceSecs = splits.map(function(s) {
+      var parts = s.pace.split(':');
+      return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+    });
+    var minPace = Math.min.apply(null, paceSecs);
+    var maxPace = Math.max.apply(null, paceSecs);
+    var range = maxPace - minPace || 1;
+
+    splits.forEach(function(s, i) {
+      var bar = document.createElement('div');
+      bar.className = 'split-bar';
+
+      var label = document.createElement('span');
+      label.className = 'split-label';
+      label.textContent = 'Mi ' + s.mile;
+
+      var track = document.createElement('div');
+      track.className = 'split-track';
+      var fill = document.createElement('div');
+      fill.className = 'split-fill';
+      // Scale bar: fastest = 100%, slowest = 40%
+      var t = (paceSecs[i] - minPace) / range;
+      var pct = 100 - (t * 60);
+      fill.style.width = pct + '%';
+      // Color: green (fast) → amber (mid) → red (slow)
+      var hue = 140 - t * 140; // 140=green, 0=red
+      fill.style.background = 'hsl(' + hue + ', 70%, 50%)';
+      track.appendChild(fill);
+
+      var pace = document.createElement('span');
+      pace.className = 'split-pace';
+      pace.textContent = s.pace;
+
+      var meta = document.createElement('span');
+      meta.className = 'split-meta';
+      var metaParts = [];
+      if (s.avg_hr != null) metaParts.push(Math.round(s.avg_hr) + ' bpm');
+      if (s.elevation_diff_m != null) {
+        var ft = Math.round(s.elevation_diff_m / 0.3048);
+        metaParts.push((ft >= 0 ? '+' : '') + ft + ' ft');
+      }
+      meta.textContent = metaParts.join(' \u00b7 ');
+
+      bar.appendChild(label);
+      bar.appendChild(track);
+      bar.appendChild(pace);
+      bar.appendChild(meta);
+      container.appendChild(bar);
+    });
+
+    return container;
+  }
+
   // -- Panel rendering --
   function renderRunningPanel() {
     var container = $('chartRunning');
@@ -1036,11 +1123,31 @@
 
       var tdSplits = document.createElement('td');
       if (r.splits && r.splits.length > 0) {
-        var splitsText = r.splits.map(function(s) { return s.pace; }).join(' | ');
-        tdSplits.textContent = splitsText;
-        tdSplits.style.fontFamily = 'var(--mono)';
-        tdSplits.style.fontSize = '0.78rem';
-        tdSplits.style.whiteSpace = 'nowrap';
+        var btn = document.createElement('button');
+        btn.className = 'splits-toggle';
+        btn.textContent = r.splits.length + ' mi';
+        btn.setAttribute('aria-label', 'Show splits');
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var existing = tr.nextElementSibling;
+          if (existing && existing.classList.contains('splits-row')) {
+            existing.remove();
+            btn.classList.remove('open');
+            return;
+          }
+          // Close any other open splits
+          document.querySelectorAll('.splits-row').forEach(function(el) { el.remove(); });
+          document.querySelectorAll('.splits-toggle.open').forEach(function(el) { el.classList.remove('open'); });
+          btn.classList.add('open');
+          var detailRow = document.createElement('tr');
+          detailRow.className = 'splits-row';
+          var detailTd = document.createElement('td');
+          detailTd.colSpan = 10;
+          detailTd.appendChild(renderSplitsChart(r.splits));
+          detailRow.appendChild(detailTd);
+          tr.after(detailRow);
+        });
+        tdSplits.appendChild(btn);
       } else {
         tdSplits.textContent = '---';
       }
