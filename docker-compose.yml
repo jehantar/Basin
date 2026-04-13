@@ -71,7 +71,7 @@ services:
       HEALTHKIT_WEBHOOK_KEY: ${HEALTHKIT_WEBHOOK_KEY}
       STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID}
       STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET}
-      STRAVA_REDIRECT_URI: ${STRAVA_REDIRECT_URI:-http://100.125.126.42:8075/strava/callback}
+      STRAVA_REDIRECT_URI: ${STRAVA_REDIRECT_URI}
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 30s

@@ -399,10 +399,10 @@ def get_training_load(start: str | None = None, end: str | None = None):
 
         days = [{
             "date": str(r[0]),
-            "ctl": round(r[1], 1) if r[1] else None,
-            "atl": round(r[2], 1) if r[2] else None,
-            "tsb": round(r[3], 1) if r[3] else None,
-            "ramp_rate": round(r[4], 2) if r[4] else None,
+            "ctl": round(r[1], 1) if r[1] is not None else None,
+            "atl": round(r[2], 1) if r[2] is not None else None,
+            "tsb": round(r[3], 1) if r[3] is not None else None,
+            "ramp_rate": round(r[4], 2) if r[4] is not None else None,
             "training_load": r[5],
         } for r in rows]
 

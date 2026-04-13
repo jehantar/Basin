@@ -9,7 +9,7 @@ import httpx
 from sqlalchemy import text
 
 from collectors.base import BaseCollector
-from shared.db import bulk_upsert
+from shared.db import bulk_upsert, get_session
 
 logger = logging.getLogger("basin.strava")
 
@@ -63,18 +63,21 @@ class StravaCollector(BaseCollector):
         data = resp.json()
 
         self._access_token = data["access_token"]
-        session.execute(text("""
-            UPDATE strava.tokens SET
-                access_token = :access,
-                refresh_token = :refresh,
-                expires_at = to_timestamp(:expires),
-                updated_at = now()
-            WHERE id = 1
-        """), {
-            "access": data["access_token"],
-            "refresh": data["refresh_token"],
-            "expires": data["expires_at"],
-        })
+        # Commit token update in a separate transaction so it persists
+        # even if _collect_activities fails and rolls back the main session.
+        with get_session() as token_session:
+            token_session.execute(text("""
+                UPDATE strava.tokens SET
+                    access_token = :access,
+                    refresh_token = :refresh,
+                    expires_at = to_timestamp(:expires),
+                    updated_at = now()
+                WHERE id = 1
+            """), {
+                "access": data["access_token"],
+                "refresh": data["refresh_token"],
+                "expires": data["expires_at"],
+            })
         logger.info("Strava token refreshed")
 
     def _get(self, path: str, params: dict | None = None) -> dict | list:
