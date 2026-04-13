@@ -543,6 +543,21 @@
     color: var(--text-muted);
   }
   .cb-txn-desc { color: var(--text-secondary); }
+  .pending-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
   .cb-txn-amt {
     font-family: var(--mono);
     font-weight: 700;
@@ -1276,6 +1291,7 @@
 
       var tdDesc = document.createElement('td');
       tdDesc.textContent = t.description || '---';
+      if (t.status === 'pending') tdDesc.appendChild(createEl('span', 'pending-tag', 'pending'));
       tr.appendChild(tdDesc);
 
       var tdAmt = document.createElement('td');
@@ -1351,7 +1367,9 @@
     txns.forEach(function(t) {
       var tr = document.createElement('tr');
       tr.appendChild(createEl('td', null, t.date));
-      tr.appendChild(createEl('td', null, t.description || '---'));
+      var tdDesc = createEl('td', null, t.description || '---');
+      if (t.status === 'pending') tdDesc.appendChild(createEl('span', 'pending-tag', 'pending'));
+      tr.appendChild(tdDesc);
       var tdAmt = createEl('td', 'td-money', fmtMoney(t.amount));
       tr.appendChild(tdAmt);
       tr.appendChild(createEl('td', null, t.card || '---'));
@@ -1386,7 +1404,9 @@
     txns.forEach(function(t) {
       var tr = document.createElement('tr');
       tr.appendChild(createEl('td', null, t.date));
-      tr.appendChild(createEl('td', null, t.description || '---'));
+      var tdDesc = createEl('td', null, t.description || '---');
+      if (t.status === 'pending') tdDesc.appendChild(createEl('span', 'pending-tag', 'pending'));
+      tr.appendChild(tdDesc);
       var tdAmt = createEl('td', 'td-money', fmtMoney(t.amount));
       tr.appendChild(tdAmt);
       tr.appendChild(createEl('td', null, t.card || '---'));
@@ -1522,7 +1542,9 @@
       cardTxns.forEach(function(t) {
         var row = createEl('div', 'cb-txn-row');
         row.appendChild(createEl('span', 'cb-txn-date', t.date));
-        row.appendChild(createEl('span', 'cb-txn-desc', t.description || '---'));
+        var desc = createEl('span', 'cb-txn-desc', t.description || '---');
+        if (t.status === 'pending') desc.appendChild(createEl('span', 'pending-tag', 'pending'));
+        row.appendChild(desc);
         row.appendChild(createEl('span', 'cb-txn-amt', fmtMoney(t.amount)));
         txnList.appendChild(row);
       });

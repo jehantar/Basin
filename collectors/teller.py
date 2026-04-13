@@ -9,11 +9,13 @@ from sqlalchemy import text
 
 from collectors.base import BaseCollector
 from shared.db import bulk_upsert
+from shared.telegram import send_alert
 
 logger = logging.getLogger("basin.teller")
 
 TELLER_API = "https://api.teller.io"
 PAGE_SIZE = 250
+WEBHOOK_BASE_URL = os.environ.get("WEBHOOK_BASE_URL", "")
 
 
 def _make_client(access_token: str, cert_path: str, key_path: str) -> httpx.Client:
@@ -94,13 +96,37 @@ def _parse_transactions(transactions_data: list, account_db_id: int) -> list[dic
 class TellerCollector(BaseCollector):
     name = "teller"
 
+    def _resolve_token(self, session) -> str:
+        """Read access token from DB, falling back to env var."""
+        row = session.execute(
+            text("SELECT access_token FROM teller.tokens WHERE id = 1")
+        ).fetchone()
+        if row and row[0]:
+            return row[0]
+
+        env_token = os.environ.get("TELLER_ACCESS_TOKEN", "")
+        if env_token:
+            logger.info("Using TELLER_ACCESS_TOKEN from environment (no DB token found)")
+            return env_token
+
+        raise RuntimeError(
+            "No Teller access token found. Visit /teller/enroll to connect your bank."
+        )
+
+    def _alert_disconnected(self):
+        """Send immediate Telegram alert when Teller returns 401."""
+        msg = "*teller* bank connection expired (401)."
+        if WEBHOOK_BASE_URL:
+            msg += f"\nRe-enroll: {WEBHOOK_BASE_URL}/teller/enroll"
+        send_alert(msg)
+
     def collect(self, session) -> int:
-        access_token = os.environ.get("TELLER_ACCESS_TOKEN", "")
+        access_token = self._resolve_token(session)
         cert_path = os.environ.get("TELLER_CERT_PATH", "")
         key_path = os.environ.get("TELLER_KEY_PATH", "")
 
-        if not access_token or not cert_path or not key_path:
-            logger.warning("Teller credentials not configured, skipping")
+        if not cert_path or not key_path:
+            logger.warning("Teller certificate paths not configured, skipping")
             return 0
 
         client = _make_client(access_token, cert_path, key_path)
@@ -109,11 +135,25 @@ class TellerCollector(BaseCollector):
 
         try:
             # Step 1: Fetch and upsert accounts
-            resp = client.get("/accounts")
-            resp.raise_for_status()
+            try:
+                resp = client.get("/accounts")
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 401:
+                    self._alert_disconnected()
+                raise
             accounts_data = resp.json()
 
             institution_rows, account_rows = _parse_accounts(accounts_data)
+
+            # Sync enrollment_id to tokens table for re-enrollment page
+            if account_rows:
+                eid = account_rows[0].get("enrollment_id")
+                if eid:
+                    session.execute(text("""
+                        UPDATE teller.tokens SET enrollment_id = :eid, updated_at = now()
+                        WHERE id = 1 AND (enrollment_id IS NULL OR enrollment_id != :eid)
+                    """), {"eid": eid})
 
             # Upsert institutions
             total += bulk_upsert(

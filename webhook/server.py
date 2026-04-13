@@ -29,6 +29,9 @@ app.include_router(investments_router)
 from webhook.strava import router as strava_router
 app.include_router(strava_router)
 
+from webhook.teller import router as teller_router
+app.include_router(teller_router)
+
 @app.get("/dashboard")
 def dashboard_redirect():
     return RedirectResponse(url="/dashboard/fitness", status_code=307)

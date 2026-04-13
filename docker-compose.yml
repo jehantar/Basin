@@ -49,6 +49,7 @@ services:
       INTERVALS_ICU_ATHLETE_ID: ${INTERVALS_ICU_ATHLETE_ID}
       STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID}
       STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET}
+      WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL}
 
   webhook:
     build:
@@ -72,6 +73,8 @@ services:
       STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID}
       STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET}
       STRAVA_REDIRECT_URI: ${STRAVA_REDIRECT_URI}
+      TELLER_APP_ID: ${TELLER_APP_ID}
+      TELLER_WEBHOOK_KEY: ${TELLER_WEBHOOK_KEY}
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 30s

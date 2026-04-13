@@ -86,10 +86,14 @@ MERCHANT_CATEGORIES = {
     "paypal *hotel": "travel", "paypal *homeaway": "travel",
 }
 
-# Precompute sorted rules: longer keywords match first (e.g., "uber eats" before "uber")
-_SORTED_RULES = sorted(MERCHANT_CATEGORIES.items(), key=lambda x: len(x[0]), reverse=True)
-
 _NORMALIZE_RE = re.compile(r'[^\w\s&]')
+
+# Precompute sorted rules: normalize keywords and sort longest-first (e.g., "uber eats" before "uber")
+_SORTED_RULES = sorted(
+    [(" ".join(_NORMALIZE_RE.sub(" ", k.lower()).split()), v) for k, v in MERCHANT_CATEGORIES.items()],
+    key=lambda x: len(x[0]),
+    reverse=True,
+)
 
 # Manual overrides file — persists user-assigned categories
 OVERRIDES_PATH = os.environ.get("CATEGORY_OVERRIDES_PATH", "/data/category_overrides.json")
@@ -112,10 +116,10 @@ def _save_overrides(overrides: dict):
 
 
 def _normalize_merchant(text_val: str) -> str:
-    """Lowercase, strip punctuation (keep &), collapse spaces."""
+    """Lowercase, strip punctuation (keep &), collapse whitespace."""
     if not text_val:
         return ""
-    return _NORMALIZE_RE.sub(" ", text_val.lower()).strip()
+    return " ".join(_NORMALIZE_RE.sub(" ", text_val.lower()).split())
 
 
 def categorize_transaction(description: str | None, counterparty: str | None, teller_category: str | None) -> str:
@@ -182,22 +186,23 @@ def display_category(raw_category: str) -> str:
 # --- Shared transaction fetching ---
 
 def _fetch_spend_transactions(session, start_date: date, end_date: date) -> list[dict]:
-    """Fetch posted transactions with categorization applied.
+    """Fetch posted and pending transactions with categorization applied.
 
     Includes both charges (positive) and returns/refunds (negative)
-    so net spend is accurate. Only excludes card bill payments.
+    so net spend is accurate. Pending transactions are included in the
+    list (tagged with status='pending') but should be excluded from
+    aggregate totals to avoid double-counting when they settle.
 
     Excludes:
-    - Pending transactions (only posted/settled)
     - Automatic payments / bill payments (card payments, not real activity)
     """
     rows = session.execute(text("""
         SELECT t.amount, t.description, t.category, t.counterparty, t.date,
-               a.name as card_name, a.last_four
+               a.name as card_name, a.last_four, t.status
         FROM teller.transactions t
         JOIN teller.accounts a ON t.account_id = a.id
         WHERE t.date BETWEEN :start AND :end
-          AND t.status = 'posted'
+          AND t.status IN ('posted', 'pending')
         ORDER BY t.date
     """), {"start": start_date, "end": end_date}).fetchall()
 
@@ -210,6 +215,7 @@ def _fetch_spend_transactions(session, start_date: date, end_date: date) -> list
         txn_date = r[4]
         card_name = r[5]
         last_four = r[6]
+        status = r[7]
 
         # Skip card bill payments only
         desc_lower = description.lower()
@@ -227,6 +233,7 @@ def _fetch_spend_transactions(session, start_date: date, end_date: date) -> list
             "date": str(txn_date),
             "card_name": card_name,
             "last_four": last_four,
+            "status": status,
         })
 
     return transactions
@@ -298,9 +305,12 @@ def get_finance_overview(start: str | None = None, end: str | None = None):
     with get_session() as session:
         transactions = _fetch_spend_transactions(session, start_date, end_date)
 
+    # Only posted transactions contribute to aggregates (pending excluded to avoid double-counting)
+    posted = [t for t in transactions if t["status"] == "posted"]
+
     # Monthly spend aggregation
     monthly = defaultdict(float)
-    for t in transactions:
+    for t in posted:
         month = t["date"][:7]  # "YYYY-MM"
         monthly[month] += t["amount"]
 
@@ -311,7 +321,7 @@ def get_finance_overview(start: str | None = None, end: str | None = None):
 
     # Category breakdown
     cat_totals = defaultdict(lambda: {"total": 0.0, "count": 0})
-    for t in transactions:
+    for t in posted:
         cat_totals[t["category"]]["total"] += t["amount"]
         cat_totals[t["category"]]["count"] += 1
 
@@ -322,11 +332,11 @@ def get_finance_overview(start: str | None = None, end: str | None = None):
     )
 
     # Summary
-    total_spend = round(sum(t["amount"] for t in transactions), 2)
+    total_spend = round(sum(t["amount"] for t in posted), 2)
     num_months = len(monthly) if monthly else 1
     avg_monthly = round(total_spend / num_months, 2)
     biggest = category_breakdown[0] if category_breakdown else None
-    uncategorized_count = sum(1 for t in transactions if t["category"] == "other")
+    uncategorized_count = sum(1 for t in posted if t["category"] == "other")
 
     summary = {
         "total_spend": total_spend,
@@ -344,6 +354,7 @@ def get_finance_overview(start: str | None = None, end: str | None = None):
         "amount": t["amount"],
         "category": t["category"],
         "card": t["card_name"],
+        "status": t["status"],
     } for t in sorted(transactions, key=lambda x: x["date"], reverse=True)]
 
     return {
@@ -375,6 +386,7 @@ def get_finance_merchants(start: str | None = None, end: str | None = None):
             "description": t["description"],
             "amount": t["amount"],
             "card": t["card_name"],
+            "status": t["status"],
         })
 
     merchants = sorted(
@@ -419,6 +431,7 @@ def get_finance_cards(start: str | None = None, end: str | None = None):
             "description": t["counterparty"] or t["description"],
             "amount": t["amount"],
             "category": t["category"],
+            "status": t["status"],
         })
 
     cards = []
