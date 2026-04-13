@@ -819,6 +819,10 @@
     return el;
   }
 
+  function addPendingTag(el, txn) {
+    if (txn.status === 'pending') el.appendChild(createEl('span', 'pending-tag', 'pending'));
+  }
+
   /* ── Formatters ── */
   function fmtMoney(n) {
     if (n == null) return '$0.00';
@@ -1291,7 +1295,7 @@
 
       var tdDesc = document.createElement('td');
       tdDesc.textContent = t.description || '---';
-      if (t.status === 'pending') tdDesc.appendChild(createEl('span', 'pending-tag', 'pending'));
+      addPendingTag(tdDesc, t);
       tr.appendChild(tdDesc);
 
       var tdAmt = document.createElement('td');
@@ -1368,7 +1372,7 @@
       var tr = document.createElement('tr');
       tr.appendChild(createEl('td', null, t.date));
       var tdDesc = createEl('td', null, t.description || '---');
-      if (t.status === 'pending') tdDesc.appendChild(createEl('span', 'pending-tag', 'pending'));
+      addPendingTag(tdDesc, t);
       tr.appendChild(tdDesc);
       var tdAmt = createEl('td', 'td-money', fmtMoney(t.amount));
       tr.appendChild(tdAmt);
@@ -1405,7 +1409,7 @@
       var tr = document.createElement('tr');
       tr.appendChild(createEl('td', null, t.date));
       var tdDesc = createEl('td', null, t.description || '---');
-      if (t.status === 'pending') tdDesc.appendChild(createEl('span', 'pending-tag', 'pending'));
+      addPendingTag(tdDesc, t);
       tr.appendChild(tdDesc);
       var tdAmt = createEl('td', 'td-money', fmtMoney(t.amount));
       tr.appendChild(tdAmt);
@@ -1543,7 +1547,7 @@
         var row = createEl('div', 'cb-txn-row');
         row.appendChild(createEl('span', 'cb-txn-date', t.date));
         var desc = createEl('span', 'cb-txn-desc', t.description || '---');
-        if (t.status === 'pending') desc.appendChild(createEl('span', 'pending-tag', 'pending'));
+        addPendingTag(desc, t);
         row.appendChild(desc);
         row.appendChild(createEl('span', 'cb-txn-amt', fmtMoney(t.amount)));
         txnList.appendChild(row);

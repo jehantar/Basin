@@ -122,7 +122,12 @@ def _normalize_merchant(text_val: str) -> str:
     return " ".join(_NORMALIZE_RE.sub(" ", text_val.lower()).split())
 
 
-def categorize_transaction(description: str | None, counterparty: str | None, teller_category: str | None) -> str:
+def categorize_transaction(
+    description: str | None,
+    counterparty: str | None,
+    teller_category: str | None,
+    overrides: dict | None = None,
+) -> str:
     """Determine effective category for a transaction.
 
     Precedence:
@@ -131,7 +136,8 @@ def categorize_transaction(description: str | None, counterparty: str | None, te
     3. Teller category if present and not generic
     4. "other"
     """
-    overrides = _load_overrides()
+    if overrides is None:
+        overrides = _load_overrides()
 
     # Check manual overrides first (exact normalized match)
     for field in [description, counterparty]:
@@ -207,6 +213,7 @@ def _fetch_spend_transactions(session, start_date: date, end_date: date) -> list
     """), {"start": start_date, "end": end_date}).fetchall()
 
     transactions = []
+    overrides = _load_overrides()
     for r in rows:
         amount = float(r[0])
         description = r[1] or ""
@@ -222,7 +229,7 @@ def _fetch_spend_transactions(session, start_date: date, end_date: date) -> list
         if "automatic payment" in desc_lower or "autopay" in desc_lower or "payment thank you" in desc_lower:
             continue
 
-        raw_category = categorize_transaction(description, counterparty, teller_cat)
+        raw_category = categorize_transaction(description, counterparty, teller_cat, overrides)
         effective_category = display_category(raw_category)
 
         transactions.append({
@@ -374,13 +381,13 @@ def get_finance_merchants(start: str | None = None, end: str | None = None):
     with get_session() as session:
         transactions = _fetch_spend_transactions(session, start_date, end_date)
 
-    # Aggregate by merchant (use counterparty if available, else description)
     merchant_agg = defaultdict(lambda: {"total": 0.0, "count": 0, "transactions": []})
     for t in transactions:
         name = t["counterparty"] or t["description"] or "Unknown"
         name = " ".join(name.split()).strip()
-        merchant_agg[name]["total"] += t["amount"]
-        merchant_agg[name]["count"] += 1
+        if t["status"] == "posted":
+            merchant_agg[name]["total"] += t["amount"]
+            merchant_agg[name]["count"] += 1
         merchant_agg[name]["transactions"].append({
             "date": t["date"],
             "description": t["description"],
@@ -418,13 +425,13 @@ def get_finance_cards(start: str | None = None, end: str | None = None):
     with get_session() as session:
         transactions = _fetch_spend_transactions(session, start_date, end_date)
 
-    # Aggregate by card + collect transactions per card
     card_agg = defaultdict(lambda: {"total": 0.0, "count": 0, "categories": defaultdict(float), "last_four": "", "transactions": []})
     for t in transactions:
         key = t["card_name"]
-        card_agg[key]["total"] += t["amount"]
-        card_agg[key]["count"] += 1
-        card_agg[key]["categories"][t["category"]] += t["amount"]
+        if t["status"] == "posted":
+            card_agg[key]["total"] += t["amount"]
+            card_agg[key]["count"] += 1
+            card_agg[key]["categories"][t["category"]] += t["amount"]
         card_agg[key]["last_four"] = t["last_four"]
         card_agg[key]["transactions"].append({
             "date": t["date"],

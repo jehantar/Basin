@@ -33,8 +33,10 @@ def _get_enrollment_id() -> str | None:
 
 
 @router.get("/teller/enroll")
-def teller_enroll():
+def teller_enroll(key: str = ""):
     """Serve the Teller Connect enrollment page."""
+    if TELLER_WEBHOOK_KEY and key != TELLER_WEBHOOK_KEY:
+        raise HTTPException(401, "Invalid key. Append ?key=<TELLER_WEBHOOK_KEY> to the URL.")
     if not TELLER_APP_ID:
         raise HTTPException(500, "TELLER_APP_ID must be set")
 

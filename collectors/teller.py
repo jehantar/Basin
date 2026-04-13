@@ -117,7 +117,11 @@ class TellerCollector(BaseCollector):
         """Send immediate Telegram alert when Teller returns 401."""
         msg = "*teller* bank connection expired (401)."
         if WEBHOOK_BASE_URL:
-            msg += f"\nRe-enroll: {WEBHOOK_BASE_URL}/teller/enroll"
+            enroll_key = os.environ.get("TELLER_WEBHOOK_KEY", "")
+            url = f"{WEBHOOK_BASE_URL}/teller/enroll"
+            if enroll_key:
+                url += f"?key={enroll_key}"
+            msg += f"\nRe-enroll: {url}"
         send_alert(msg)
 
     def collect(self, session) -> int:
