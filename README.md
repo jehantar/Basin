@@ -8,11 +8,11 @@ Personal data aggregator that collects fitness, financial, health, and investmen
 Local Machine                          VM (Docker)
 +-----------------+     SSH/SCP        +---------------------------+
 | Apple Health    | ──────────────────> | Collector (cron)          |
-| Hevy CSV        |                    |   HealthKit  XML parser   |
-+-----------------+                    |   Hevy       CSV parser   |
-                                       |   Teller     Bank API     |
-                                       |   Nasdaq     SHARADAR/SEP |
-                                       |              + Yahoo Fin  |
+| Hevy CSV        |                    |   HealthKit     XML parse |
++-----------------+                    |   Hevy          CSV parse |
+                                       |   Intervals.icu REST API  |
+                                       |   Teller        Bank API  |
+                                       |   Nasdaq        SHARADAR  |
                                        +---------------------------+
                                        | Webhook (FastAPI)         |
                                        |   /dashboard/fitness      |
@@ -30,12 +30,13 @@ Local Machine                          VM (Docker)
 |-----------|--------|----------|------|
 | HealthKit | Apple Health XML export | Daily 6:05 AM UTC | Metrics (VO2max, weight, HR, body fat) + workouts |
 | Hevy | CSV drop folder | Daily 6:00 AM UTC | Strength training: exercises, sets, weight/reps |
+| Intervals.icu | REST API (Strava data) | Daily 6:10 AM UTC | Training load (CTL/ATL/TSB), pace curves, HR curves |
 | Teller | Bank API (mTLS) | Daily 7:00 AM UTC | Accounts, balances, transactions |
 | Nasdaq | SHARADAR/SEP + Yahoo Finance | Daily 1:30 AM UTC | Daily stock prices (equities via SHARADAR, ETF benchmarks via Yahoo) |
 
 ## Dashboards
 
-- **Fitness** — Running stats (pace, distance, power), VO2max trends, strength volume/PRs, training calendar
+- **Fitness** — Running stats (pace, distance, power), VO2max trends, strength volume/PRs, training load (CTL/ATL/TSB), pace curves, HR curves, training calendar
 - **Finance** — Monthly spend trends, category breakdowns, merchant analysis, per-card spending
 - **Investments** — Stock watchlist performance tracker with:
   - Normalized return overlay chart with hover highlighting
@@ -83,6 +84,8 @@ Required environment variables:
 | `TELEGRAM_BOT_TOKEN` | Telegram alert bot token |
 | `TELEGRAM_CHAT_ID` | Telegram alert destination |
 | `NASDAQ_DATA_LINK_API_KEY` | Nasdaq Data Link API key (SHARADAR equity prices) |
+| `INTERVALS_ICU_API_KEY` | Intervals.icu API key (training load, pace/HR curves) |
+| `INTERVALS_ICU_ATHLETE_ID` | Intervals.icu athlete ID (e.g., `i553742`) |
 | `WEBHOOK_BIND` | Optional webhook port override (default: 8075) |
 
 ### Start services
@@ -99,6 +102,9 @@ docker compose exec -T postgres psql -U basin -d basin -f /docker-entrypoint-ini
 
 # Investments schema
 docker compose exec -T postgres psql -U basin -d basin -f /docker-entrypoint-initdb.d/002_investments.sql
+
+# Intervals.icu schema
+docker compose exec -T postgres psql -U basin -d basin -f /docker-entrypoint-initdb.d/003_intervals_icu.sql
 ```
 
 ## Syncing Health Data
@@ -165,6 +171,7 @@ pytest
 | `hevy` | `exercises`, `workouts`, `sets` | Strength training |
 | `teller` | `institutions`, `accounts`, `balances`, `transactions` | Banking |
 | `investments` | `watchlist`, `stock_groups`, `stock_group_members`, `daily_prices` | Stock watchlist and price history |
+| `intervals` | `daily_fitness`, `pace_curves`, `hr_curves` | Training load and performance curves |
 | `basin` | `collector_runs`, `hevy_imports` | System tracking |
 
 ## Backups
