@@ -36,7 +36,7 @@ Local Machine                          VM (Docker)
 
 ## Dashboards
 
-- **Fitness** — Running stats (pace, distance, power), VO2max trends, strength volume/PRs, training load (CTL/ATL/TSB), pace curves, HR curves, training calendar
+- **Fitness** — Running stats (pace, distance, elevation, max HR, calories, per-mile splits with route maps), VO2max trends, strength volume/PRs, training load (CTL/ATL/TSB), pace curves, HR curves, training calendar
 - **Finance** — Monthly spend trends, category breakdowns, merchant analysis, per-card spending
 - **Investments** — Stock watchlist performance tracker with:
   - Normalized return overlay chart with hover highlighting
@@ -105,6 +105,10 @@ docker compose exec -T postgres psql -U basin -d basin -f /docker-entrypoint-ini
 
 # Intervals.icu schema
 docker compose exec -T postgres psql -U basin -d basin -f /docker-entrypoint-initdb.d/003_intervals_icu.sql
+
+# Strava schema
+docker compose exec -T postgres psql -U basin -d basin -f /docker-entrypoint-initdb.d/004_strava.sql
+docker compose exec -T postgres psql -U basin -d basin -f /docker-entrypoint-initdb.d/004a_strava_splits.sql
 ```
 
 ## Syncing Health Data
@@ -172,6 +176,7 @@ pytest
 | `teller` | `institutions`, `accounts`, `balances`, `transactions` | Banking |
 | `investments` | `watchlist`, `stock_groups`, `stock_group_members`, `daily_prices` | Stock watchlist and price history |
 | `intervals` | `daily_fitness`, `pace_curves`, `hr_curves` | Training load and performance curves |
+| `strava` | `tokens`, `activities` | Strava OAuth tokens and activity data (elevation, splits, GPS) |
 | `basin` | `collector_runs`, `hevy_imports` | System tracking |
 
 ## Backups
