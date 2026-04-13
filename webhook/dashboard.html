@@ -28,6 +28,7 @@
     --color-running: #3b82f6;
     --color-vo2max: #a78bfa;
     --color-strength: #22c55e;
+    --color-training: #f59e0b;
     --mono: 'Space Mono', monospace;
     --sans: 'DM Sans', sans-serif;
   }
@@ -143,10 +144,12 @@
   .card.active-running  { border-color: var(--color-running); box-shadow: 0 0 24px rgba(59,130,246,0.12); }
   .card.active-vo2max   { border-color: var(--color-vo2max); box-shadow: 0 0 24px rgba(167,139,250,0.12); }
   .card.active-strength { border-color: var(--color-strength); box-shadow: 0 0 24px rgba(34,197,94,0.12); }
+  .card.active-training { border-color: var(--color-training); box-shadow: 0 0 24px rgba(245,158,11,0.12); }
 
   .card.running-card::before { background: var(--color-running); }
   .card.vo2max-card::before { background: var(--color-vo2max); }
   .card.strength-card::before { background: var(--color-strength); }
+  .card.training-card::before { background: var(--color-training); }
 
   .card-label {
     font-size: 0.7rem;
@@ -158,6 +161,7 @@
   .card-label.running  { color: var(--color-running); }
   .card-label.vo2max   { color: var(--color-vo2max); }
   .card-label.strength { color: var(--color-strength); }
+  .card-label.training { color: var(--color-training); }
 
   .card-value {
     font-family: var(--mono);
@@ -578,6 +582,13 @@
       <div class="card-trend" id="strengthTrend">&nbsp;</div>
       <div class="sparkline" id="sparkStrength"></div>
     </div>
+    <div class="card training-card" id="cardTraining" tabindex="0" role="button" aria-label="Training Load">
+      <div class="card-label training">Training Load</div>
+      <div class="card-value" id="trainingValue">--</div>
+      <div class="card-sub" id="trainingSub">&nbsp;</div>
+      <div class="card-trend" id="trainingTrend">&nbsp;</div>
+      <div class="sparkline" id="sparkTraining"></div>
+    </div>
   </div>
 
   <div class="calendar-strip" id="calendarStrip">
@@ -641,6 +652,32 @@
       <div class="chart-area" id="chartVo2max"></div>
     </div>
 
+    <div class="panel" id="panelTraining">
+      <div class="chart-area" id="chartTraining"></div>
+      <div class="trend-cards">
+        <div class="trend-card">
+          <div class="trend-card-label">Fitness (CTL)</div>
+          <div class="trend-card-value" id="trendCTL">---</div>
+          <div class="trend-card-sub" id="trendCTLSub"></div>
+        </div>
+        <div class="trend-card">
+          <div class="trend-card-label">Fatigue (ATL)</div>
+          <div class="trend-card-value" id="trendATL">---</div>
+          <div class="trend-card-sub" id="trendATLSub"></div>
+        </div>
+        <div class="trend-card">
+          <div class="trend-card-label">Form (TSB)</div>
+          <div class="trend-card-value" id="trendTSB">---</div>
+          <div class="trend-card-sub" id="trendTSBSub"></div>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="chart-area" id="chartPaceCurve"></div>
+        <div class="chart-area" id="chartElapsedCurve"></div>
+      </div>
+      <div class="chart-area" id="chartHRCurve"></div>
+    </div>
+
     <div class="panel" id="panelStrength">
       <div class="workout-tabs" id="workoutTabs" role="tablist"></div>
       <div class="trend-cards">
@@ -676,6 +713,9 @@
   var runData = null;
   var vo2Data = null;
   var strData = null;
+  var trnData = null;
+  var paceCurveData = null;
+  var hrCurveData = null;
   var activePreset = null;
 
   // -- DOM refs --
@@ -683,6 +723,7 @@
   var cardRunning  = $('cardRunning');
   var cardVo2max   = $('cardVo2max');
   var cardStrength = $('cardStrength');
+  var cardTraining = $('cardTraining');
   var startInput   = $('startDate');
   var endInput     = $('endDate');
   var errorBanner  = $('errorBanner');
@@ -877,6 +918,27 @@
     }
   }
 
+  function updateTrainingCard() {
+    if (!trnData) return;
+    var c = trnData.current;
+    if (c && c.ctl != null) {
+      $('trainingValue').textContent = 'CTL ' + c.ctl.toFixed(1);
+      var tsbLabel = c.tsb >= 5 ? 'Fresh' : c.tsb <= -10 ? 'Fatigued' : 'Building';
+      $('trainingSub').textContent = 'TSB ' + (c.tsb >= 0 ? '+' : '') + c.tsb.toFixed(1) + ' \u00b7 ' + tsbLabel;
+    } else {
+      $('trainingValue').textContent = '---';
+      $('trainingSub').textContent = 'No data';
+    }
+    var ctls = trnData.days.filter(function(d) { return d.ctl != null; }).map(function(d) { return d.ctl; });
+    if (ctls.length > 1) {
+      var diff = (ctls[ctls.length - 1] - ctls[0]).toFixed(1);
+      $('trainingTrend').textContent = (diff >= 0 ? '+' : '') + diff + ' CTL over range';
+      renderSparkline('sparkTraining', ctls.slice(-30), '#f59e0b');
+    } else {
+      $('trainingTrend').textContent = '';
+    }
+  }
+
   // -- Panel rendering --
   function renderRunningPanel() {
     var container = $('chartRunning');
@@ -1019,6 +1081,204 @@
     var titles = (strData && strData.workout_titles) || [];
     var idx = titles.indexOf(title);
     return TITLE_COLORS[idx >= 0 ? idx % TITLE_COLORS.length : 0];
+  }
+
+  function renderTrainingPanel() {
+    // -- CTL/ATL/TSB chart --
+    if (!trnData || trnData.days.length === 0) {
+      showEmpty('chartTraining');
+    } else {
+      var dates = trnData.days.map(function(d) { return d.date; });
+      var ctls = trnData.days.map(function(d) { return d.ctl; });
+      var atls = trnData.days.map(function(d) { return d.atl; });
+      var tsbs = trnData.days.map(function(d) { return d.tsb; });
+      var loads = trnData.days.map(function(d) { return d.training_load; });
+
+      Plotly.newPlot($('chartTraining'), [
+        {
+          x: dates, y: loads, type: 'bar', name: 'Load',
+          marker: { color: 'rgba(245,158,11,0.3)' },
+          yaxis: 'y2', hovertemplate: 'Load: %{y}<extra></extra>'
+        },
+        {
+          x: dates, y: ctls, type: 'scatter', mode: 'lines', name: 'CTL (Fitness)',
+          line: { color: '#3b82f6', width: 2 },
+          hovertemplate: 'CTL: %{y:.1f}<extra></extra>'
+        },
+        {
+          x: dates, y: atls, type: 'scatter', mode: 'lines', name: 'ATL (Fatigue)',
+          line: { color: '#ef4444', width: 2 },
+          hovertemplate: 'ATL: %{y:.1f}<extra></extra>'
+        },
+        {
+          x: dates, y: tsbs, type: 'scatter', mode: 'lines', name: 'TSB (Form)',
+          line: { color: '#10b981', width: 2, dash: 'dot' },
+          fill: 'tozeroy',
+          fillcolor: 'rgba(16,185,129,0.08)',
+          hovertemplate: 'TSB: %{y:+.1f}<extra></extra>'
+        }
+      ], baseLayout('Training Load', '', '', {
+        yaxis2: {
+          overlaying: 'y', side: 'right',
+          showgrid: false, zeroline: false,
+          tickfont: { color: '#64748b', family: 'Space Mono, monospace', size: 10 }
+        },
+        legend: {
+          orientation: 'h', x: 0, y: 1.12,
+          font: { size: 11, color: '#94a3b8' },
+          bgcolor: 'rgba(0,0,0,0)'
+        },
+        shapes: [{
+          type: 'line', x0: dates[0], x1: dates[dates.length-1],
+          y0: 0, y1: 0, line: { color: '#475569', width: 1, dash: 'dash' }
+        }]
+      }), plotConfig);
+
+      // Update trend cards
+      var c = trnData.current;
+      if (c) {
+        $('trendCTL').textContent = c.ctl != null ? c.ctl.toFixed(1) : '---';
+        $('trendATL').textContent = c.atl != null ? c.atl.toFixed(1) : '---';
+        var tsb = c.tsb;
+        $('trendTSB').textContent = tsb != null ? (tsb >= 0 ? '+' : '') + tsb.toFixed(1) : '---';
+        if (tsb != null) {
+          $('trendTSBSub').textContent = tsb >= 5 ? 'Fresh — ready to race' : tsb <= -10 ? 'Fatigued — easy day' : 'Building fitness';
+          $('trendTSBSub').style.color = tsb >= 5 ? '#10b981' : tsb <= -10 ? '#ef4444' : '#f59e0b';
+        }
+        if (c.ramp_rate != null) {
+          $('trendCTLSub').textContent = 'Ramp: ' + (c.ramp_rate >= 0 ? '+' : '') + c.ramp_rate.toFixed(2);
+        }
+      }
+    }
+
+    // -- Pace Curve: two side-by-side charts --
+    if (paceCurveData && paceCurveData.efforts && paceCurveData.efforts.length > 0) {
+      var efforts = paceCurveData.efforts;
+      var labels = efforts.map(function(e) {
+        var m = e.target_m;
+        if (m >= 21000) return 'HM';
+        if (m >= 10000) return '10K';
+        if (m >= 5000) return '5K';
+        if (m >= 3000) return '3K';
+        if (m >= 1609) return '1 mi';
+        if (m >= 1000) return '1K';
+        if (m >= 800) return '800m';
+        return Math.round(m) + 'm';
+      }).reverse();
+
+      function fmtElapsed(s) {
+        var m = Math.floor(s / 60);
+        var sec = Math.round(s % 60);
+        if (sec === 60) { m++; sec = 0; }
+        return m + ':' + String(sec).padStart(2, '0');
+      }
+
+      function paceToSecs(p) {
+        var parts = p.split(':');
+        return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+      }
+
+      var paceSecs = efforts.map(function(e) { return paceToSecs(e.pace_per_mile); }).reverse();
+      var paceTexts = efforts.map(function(e) { return e.pace_per_mile; }).reverse();
+      var elapsedSecs = efforts.map(function(e) { return e.time_secs; }).reverse();
+      var elapsedTexts = elapsedSecs.map(function(s) { return fmtElapsed(s); });
+
+      var minPace = Math.min.apply(null, paceSecs);
+      var maxPace = Math.max.apply(null, paceSecs);
+      var paceRange = maxPace - minPace || 1;
+      var paceColors = paceSecs.map(function(p) {
+        var t = (p - minPace) / paceRange;
+        var r = Math.round(16 + t * 43);
+        var g = Math.round(185 - t * 55);
+        var b = Math.round(129 + t * 127);
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+      });
+
+      var chartH = 60 + labels.length * 38;
+
+      // Left chart: Pace per mile
+      Plotly.newPlot($('chartPaceCurve'), [{
+        y: labels, x: paceSecs, type: 'bar', orientation: 'h',
+        marker: { color: paceColors, opacity: 0.9 },
+        text: paceTexts.map(function(p) { return p + '/mi'; }),
+        textposition: 'outside',
+        textfont: { color: '#e2e8f0', family: 'Space Mono, monospace', size: 12 },
+        hovertemplate: '%{y}: %{text}<extra></extra>'
+      }], baseLayout('Pace per Mile', '', '', {
+        xaxis: {
+          title: '', gridcolor: '#1e293b', linecolor: '#1e293b',
+          tickfont: { color: '#94a3b8', family: 'Space Mono, monospace', size: 11 },
+          zeroline: false,
+          tickvals: [6*60, 7*60, 8*60, 9*60, 10*60, 11*60],
+          ticktext: ['6:00', '7:00', '8:00', '9:00', '10:00', '11:00'],
+          range: [Math.floor(minPace * 0.9), Math.ceil(maxPace * 1.25)]
+        },
+        yaxis: {
+          title: '', gridcolor: 'transparent', linecolor: 'transparent',
+          tickfont: { color: '#e2e8f0', family: 'DM Sans, sans-serif', size: 13 },
+          zeroline: false
+        },
+        margin: { t: 48, b: 44, l: 55, r: 80 },
+        height: chartH
+      }), plotConfig);
+
+      // Right chart: Elapsed time
+      var maxElapsed = Math.max.apply(null, elapsedSecs);
+      var elapsedColors = elapsedSecs.map(function(s) {
+        var t = s / maxElapsed;
+        var r = Math.round(59 + t * 0);
+        var g = Math.round(130 - t * 0);
+        var b = Math.round(246 + t * 0);
+        return 'rgba(59,130,246,' + (0.4 + t * 0.5).toFixed(2) + ')';
+      });
+
+      // Build tick values for elapsed time axis (pick ~5 ticks)
+      var elapsedTicks = [];
+      var elapsedTickTexts = [];
+      var step = maxElapsed <= 600 ? 120 : maxElapsed <= 1800 ? 600 : 1200;
+      for (var t = 0; t <= maxElapsed + step; t += step) {
+        elapsedTicks.push(t);
+        elapsedTickTexts.push(fmtElapsed(t));
+      }
+
+      Plotly.newPlot($('chartElapsedCurve'), [{
+        y: labels, x: elapsedSecs, type: 'bar', orientation: 'h',
+        marker: { color: elapsedColors },
+        text: elapsedTexts,
+        textposition: 'outside',
+        textfont: { color: '#e2e8f0', family: 'Space Mono, monospace', size: 12 },
+        hovertemplate: '%{y}: %{text}<extra></extra>'
+      }], baseLayout('Elapsed Time', '', '', {
+        xaxis: {
+          title: '', gridcolor: '#1e293b', linecolor: '#1e293b',
+          tickfont: { color: '#94a3b8', family: 'Space Mono, monospace', size: 11 },
+          zeroline: false,
+          tickvals: elapsedTicks,
+          ticktext: elapsedTickTexts,
+          range: [0, maxElapsed * 1.2]
+        },
+        yaxis: {
+          title: '', gridcolor: 'transparent', linecolor: 'transparent',
+          tickfont: { color: '#e2e8f0', family: 'DM Sans, sans-serif', size: 13 },
+          zeroline: false
+        },
+        margin: { t: 48, b: 44, l: 55, r: 70 },
+        height: chartH
+      }), plotConfig);
+    }
+
+    // -- HR Curve chart --
+    if (hrCurveData && hrCurveData.efforts && hrCurveData.efforts.length > 0) {
+      var hrLabels = hrCurveData.efforts.map(function(e) { return e.label; });
+      var hrs = hrCurveData.efforts.map(function(e) { return e.hr_bpm; });
+
+      Plotly.newPlot($('chartHRCurve'), [{
+        x: hrLabels, y: hrs, type: 'scatter', mode: 'lines+markers',
+        line: { color: '#ef4444', width: 2 },
+        marker: { size: 6, color: '#ef4444' },
+        hovertemplate: '%{x}: %{y} bpm<extra></extra>'
+      }], baseLayout('HR Curve — Peak Heart Rate', '', 'HR (bpm)'), plotConfig);
+    }
   }
 
   function renderStrengthPanel() {
@@ -1427,14 +1687,17 @@
     cardRunning.className  = 'card running-card' + (name === 'running'  ? ' active-running'  : '');
     cardVo2max.className   = 'card vo2max-card' + (name === 'vo2max'   ? ' active-vo2max'   : '');
     cardStrength.className = 'card strength-card' + (name === 'strength' ? ' active-strength' : '');
+    cardTraining.className = 'card training-card' + (name === 'training' ? ' active-training' : '');
 
     $('panelRunning').className  = 'panel' + (name === 'running'  ? ' active' : '');
     $('panelVo2max').className   = 'panel' + (name === 'vo2max'   ? ' active' : '');
     $('panelStrength').className = 'panel' + (name === 'strength' ? ' active' : '');
+    $('panelTraining').className = 'panel' + (name === 'training' ? ' active' : '');
 
     if (name === 'running')  renderRunningPanel();
     if (name === 'vo2max')   renderVo2maxPanel();
     if (name === 'strength') renderStrengthPanel();
+    if (name === 'training') renderTrainingPanel();
   }
 
   // -- Data loading --
@@ -1457,17 +1720,25 @@
     $('vo2maxSub').textContent = '\u00a0';
     $('strengthValue').textContent = '--';
     $('strengthSub').textContent = '\u00a0';
+    $('trainingValue').textContent = '--';
+    $('trainingSub').textContent = '\u00a0';
 
     Promise.all([
       fetch('/api/fitness/running' + qs).then(function(r) { if (!r.ok) throw new Error('Running API error: ' + r.status); return r.json(); }),
       fetch('/api/fitness/vo2max' + qs).then(function(r) { if (!r.ok) throw new Error('VO2 Max API error: ' + r.status); return r.json(); }),
       fetch('/api/fitness/strength' + qs).then(function(r) { if (!r.ok) throw new Error('Strength API error: ' + r.status); return r.json(); }),
       fetch('/api/fitness/calendar' + qs).then(function(r) { if (!r.ok) throw new Error('Calendar API error: ' + r.status); return r.json(); }),
+      fetch('/api/fitness/training-load' + qs).then(function(r) { if (!r.ok) throw new Error('Training Load API error: ' + r.status); return r.json(); }),
+      fetch('/api/fitness/pace-curve').then(function(r) { if (!r.ok) throw new Error('Pace Curve API error: ' + r.status); return r.json(); }),
+      fetch('/api/fitness/hr-curve').then(function(r) { if (!r.ok) throw new Error('HR Curve API error: ' + r.status); return r.json(); }),
     ]).then(function(results) {
       runData = results[0];
       vo2Data = results[1];
       strData = results[2];
       var calData = results[3];
+      trnData = results[4];
+      paceCurveData = results[5];
+      hrCurveData = results[6];
 
       if (runData.generated_at) {
         var gen = new Date(runData.generated_at);
@@ -1479,6 +1750,7 @@
       updateRunningCard();
       updateVo2maxCard();
       updateStrengthCard();
+      updateTrainingCard();
       renderCalendar(calData);
       switchPanel(activePanel);
 
@@ -1515,8 +1787,9 @@
   cardRunning.addEventListener('click', function() { switchPanel('running'); });
   cardVo2max.addEventListener('click', function() { switchPanel('vo2max'); });
   cardStrength.addEventListener('click', function() { switchPanel('strength'); });
+  cardTraining.addEventListener('click', function() { switchPanel('training'); });
 
-  [cardRunning, cardVo2max, cardStrength].forEach(function(card) {
+  [cardRunning, cardVo2max, cardStrength, cardTraining].forEach(function(card) {
     card.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();

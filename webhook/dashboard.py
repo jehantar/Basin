@@ -315,3 +315,118 @@ def get_strength_data(
         "sets": sets,
         "prs": prs,
     }
+
+
+@router.get("/api/fitness/training-load")
+def get_training_load(start: str | None = None, end: str | None = None):
+    """CTL / ATL / TSB timeseries from Intervals.icu."""
+    start_date, end_date = _parse_date_range(start, end)
+
+    with get_session() as session:
+        rows = session.execute(text("""
+            SELECT date, ctl, atl, tsb, ramp_rate, training_load
+            FROM intervals.daily_fitness
+            WHERE date BETWEEN :start AND :end
+            ORDER BY date
+        """), {"start": start_date, "end": end_date}).fetchall()
+
+        days = [{
+            "date": str(r[0]),
+            "ctl": round(r[1], 1) if r[1] else None,
+            "atl": round(r[2], 1) if r[2] else None,
+            "tsb": round(r[3], 1) if r[3] else None,
+            "ramp_rate": round(r[4], 2) if r[4] else None,
+            "training_load": r[5],
+        } for r in rows]
+
+        # Current fitness state = latest row
+        current = days[-1] if days else {}
+
+    return {**_response_metadata(start_date, end_date), "days": days, "current": current}
+
+
+@router.get("/api/fitness/pace-curve")
+def get_pace_curve():
+    """Best-effort pace curve — latest snapshot."""
+    with get_session() as session:
+        latest = session.execute(text("""
+            SELECT MAX(captured_at) FROM intervals.pace_curves
+        """)).scalar()
+
+        if not latest:
+            return {"distances": []}
+
+        rows = session.execute(text("""
+            SELECT distance_m, time_secs
+            FROM intervals.pace_curves
+            WHERE captured_at = :date AND period = '1 year'
+            ORDER BY distance_m
+        """), {"date": latest}).fetchall()
+
+        # Extract key distances for display
+        key_distances = [400, 800, 1000, 1609.344, 3000, 5000, 10000, 21097]
+        efforts = []
+        all_points = [(float(r[0]), float(r[1])) for r in rows]
+
+        for target in key_distances:
+            best = None
+            for dist, secs in all_points:
+                if dist >= target:
+                    best = (dist, secs)
+                    break
+            if best:
+                dist, secs = best
+                pace_per_mi = (secs / dist) * 1609.344
+                mins = int(pace_per_mi) // 60
+                s = int(pace_per_mi) % 60
+                efforts.append({
+                    "target_m": target,
+                    "actual_m": dist,
+                    "time_secs": secs,
+                    "pace_per_mile": f"{mins}:{s:02d}",
+                })
+
+    return {"captured_at": str(latest), "efforts": efforts, "all_points": all_points}
+
+
+@router.get("/api/fitness/hr-curve")
+def get_hr_curve():
+    """Peak HR curve — latest snapshot."""
+    with get_session() as session:
+        latest = session.execute(text("""
+            SELECT MAX(captured_at) FROM intervals.hr_curves
+        """)).scalar()
+
+        if not latest:
+            return {"durations": []}
+
+        rows = session.execute(text("""
+            SELECT duration_secs, hr_bpm
+            FROM intervals.hr_curves
+            WHERE captured_at = :date AND period = '1 year'
+            ORDER BY duration_secs
+        """), {"date": latest}).fetchall()
+
+        # Extract key durations
+        key_durations = [
+            (5, "5s"), (10, "10s"), (30, "30s"), (60, "1min"),
+            (120, "2min"), (300, "5min"), (600, "10min"),
+            (1200, "20min"), (1800, "30min"), (3600, "60min"),
+        ]
+
+        all_points = [(int(r[0]), int(r[1])) for r in rows]
+        efforts = []
+        for target, label in key_durations:
+            best = None
+            for secs, hr in all_points:
+                if secs >= target:
+                    best = (secs, hr)
+                    break
+            if best:
+                efforts.append({
+                    "label": label,
+                    "duration_secs": best[0],
+                    "hr_bpm": best[1],
+                })
+
+    return {"captured_at": str(latest), "efforts": efforts, "all_points": all_points}

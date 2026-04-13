@@ -16,6 +16,7 @@ COLLECTOR_SCHEDULES = {
     "hevy": "Daily 6:00 AM UTC",
     "healthkit": "Daily 6:05 AM UTC",
     "nasdaq": "Daily 1:30 AM UTC",
+    "intervals_icu": "Daily 6:10 AM UTC",
 }
 
 
