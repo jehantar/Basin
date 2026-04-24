@@ -137,7 +137,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
             strava_elev = float(strava[2]) if strava and strava[2] is not None else None
             max_hr = float(strava[3]) if strava and strava[3] else None
             calories = round(float(strava[4])) if strava and strava[4] else None
-            strava_cadence = round(float(strava[5])) if strava and strava[5] else None
+            strava_cadence = round(float(strava[5]) * 2) if strava and strava[5] else None
             splits_json = strava[6] if strava else None
             polyline = strava[7] if strava else None
 
@@ -149,7 +149,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
             hk_cadence = None
             if speed and stride_m and stride_m > 0:
                 speed_m_per_min = speed * 26.8224  # mph to m/min
-                hk_cadence = round(speed_m_per_min / stride_m)
+                hk_cadence = round(speed_m_per_min / stride_m * 2)
             cadence = strava_cadence or hk_cadence
 
             # Parse splits into pace per mile
