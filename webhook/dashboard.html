@@ -54,7 +54,7 @@
   .page-container {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 0 32px 48px;
+    padding: 0 12px 32px;
   }
 
   a { color: var(--accent); text-decoration: none; }
@@ -64,7 +64,7 @@
     display: flex;
     align-items: center;
     gap: 0;
-    padding: 0 32px;
+    padding: 0 12px;
     background: linear-gradient(180deg, rgba(10,15,26,0.95) 0%, rgba(10,15,26,0.8) 100%);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -74,9 +74,9 @@
     z-index: 100;
   }
   .nav-tab {
-    padding: 16px 28px;
+    padding: 14px 16px;
     font-family: var(--sans);
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -101,7 +101,7 @@
     margin-bottom: 28px;
   }
   .header h1 {
-    font-size: 1.75rem;
+    font-size: 1.3rem;
     font-weight: 700;
     color: var(--text-primary);
     letter-spacing: -0.02em;
@@ -119,15 +119,15 @@
   /* ── Summary Cards ── */
   .cards {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
     margin-bottom: 28px;
   }
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 16px;
-    padding: 24px 28px;
+    padding: 16px 14px;
     cursor: pointer;
     position: relative;
     overflow: hidden;
@@ -173,7 +173,7 @@
 
   .card-value {
     font-family: var(--mono);
-    font-size: 2.25rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--text-primary);
     line-height: 1.1;
@@ -257,7 +257,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 16px;
-    padding: 28px;
+    padding: 16px;
     min-height: 440px;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
@@ -266,7 +266,8 @@
   /* ── Filters ── */
   .filters {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
     gap: 6px;
     margin-bottom: 24px;
     flex-wrap: wrap;
@@ -277,7 +278,7 @@
     color: var(--text-muted);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 6px 14px;
+    padding: 10px 14px;
     font-size: 0.75rem;
     font-weight: 400;
     cursor: pointer;
@@ -304,7 +305,7 @@
     color: var(--text-secondary);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 6px 10px;
+    padding: 10px 12px;
     font-size: 0.75rem;
     outline: none;
     transition: border-color 0.2s;
@@ -313,6 +314,9 @@
 
   /* ── Chart area ── */
   .chart-area { width: 100%; min-height: 340px; }
+
+  /* ── Pace/Elapsed grid ── */
+  .pace-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
 
   /* ── Data Tables ── */
   .runs-table-wrapper {
@@ -331,14 +335,14 @@
   .runs-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.82rem;
+    font-size: 0.75rem;
   }
   .runs-table thead { position: sticky; top: 0; z-index: 1; }
   .runs-table th {
     text-align: left;
     color: var(--text-muted);
     font-weight: 600;
-    padding: 10px 16px;
+    padding: 8px 10px;
     border-bottom: 1px solid var(--border);
     text-transform: uppercase;
     font-size: 0.68rem;
@@ -346,10 +350,11 @@
     background: var(--surface);
   }
   .runs-table td {
-    padding: 10px 16px;
+    padding: 8px 10px;
     color: var(--text-secondary);
     border-bottom: 1px solid rgba(30,41,59,0.5);
   }
+  .col-landscape { display: none; }
   .runs-table tbody tr { transition: background 0.15s; }
   .runs-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
   .runs-table tbody tr:hover td { background: rgba(59,130,246,0.04); }
@@ -362,14 +367,14 @@
     color: var(--color-running);
     border: 1px solid rgba(59,130,246,0.25);
     border-radius: 4px;
-    padding: 3px 8px;
+    padding: 8px 14px;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
   }
   .splits-toggle:hover { background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.4); }
   .splits-toggle.open { background: rgba(59,130,246,0.25); border-color: var(--color-running); }
   .splits-row td { padding: 12px 16px !important; background: rgba(59,130,246,0.03) !important; }
-  .splits-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  .splits-detail { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
   .splits-chart { }
   .route-map-container { height: 240px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
   .route-map-container .leaflet-control-attribution { font-size: 9px; opacity: 0.6; }
@@ -475,7 +480,7 @@
   }
 
   /* ── Trend Summary ── */
-  .trend-cards { display: flex; gap: 16px; margin-bottom: 20px; }
+  .trend-cards { display: flex; flex-direction: column; gap: 16px; margin-bottom: 20px; }
   .trend-card {
     background: rgba(10,15,26,0.5);
     border-radius: 12px;
@@ -519,14 +524,15 @@
 
   .wk-row { background: var(--surface); border-bottom: 1px solid rgba(30,41,59,0.5); }
   .wk-header {
-    display: grid; grid-template-columns: 80px 1fr 60px 55px 90px;
-    padding: 10px 16px; align-items: center; font-size: 0.82rem;
+    display: grid; grid-template-columns: auto 1fr auto;
+    padding: 12px 16px; align-items: center; font-size: 0.82rem;
     cursor: pointer; transition: background 0.15s; outline: none;
+    min-height: 44px; gap: 8px;
   }
   .wk-header:hover, .wk-header:focus-visible { background: var(--surface-hover); }
   .wk-date { font-family: var(--mono); font-size: 0.75rem; color: var(--text-muted); }
-  .wk-title { color: var(--text-primary); font-weight: 600; }
-  .wk-stat { color: var(--text-muted); text-align: center; font-size: 0.78rem; }
+  .wk-title { color: var(--text-primary); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wk-stat { display: none; color: var(--text-muted); text-align: center; font-size: 0.78rem; }
   .wk-volume {
     font-family: var(--mono);
     color: var(--color-strength);
@@ -561,19 +567,34 @@
   .panel { display: none; }
   .panel.active { display: block; }
 
-  /* ── Responsive ── */
-  @media (max-width: 900px) {
-    .page-container { padding: 0 16px 32px; }
-    .top-nav { padding: 0 16px; }
-    .cards { grid-template-columns: 1fr; }
-    .filters { flex-direction: column; align-items: stretch; }
-    .trend-cards { flex-direction: column; }
-    .detail-panel { padding: 16px; }
-    .card-value { font-size: 1.8rem; }
+  /* ── Landscape: show hidden table columns ── */
+  @media (min-width: 600px) {
+    .col-landscape { display: table-cell; }
   }
-  @media (max-width: 500px) {
-    .nav-tab { padding: 12px 16px; font-size: 0.78rem; }
-    .header h1 { font-size: 1.3rem; }
+
+  /* ── Desktop overrides ── */
+  @media (min-width: 900px) {
+    .page-container { padding: 0 32px 48px; }
+    .top-nav { padding: 0 32px; }
+    .nav-tab { padding: 16px 28px; font-size: 0.85rem; }
+    .header h1 { font-size: 1.75rem; }
+    .cards { grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .card { padding: 24px 28px; }
+    .card-value { font-size: 2.25rem; }
+    .detail-panel { padding: 28px; }
+    .filters { flex-direction: row; align-items: center; }
+    .preset-btn { padding: 6px 14px; }
+    .date-input { padding: 6px 10px; }
+    .trend-cards { flex-direction: row; }
+    .pace-grid { grid-template-columns: 1fr 1fr; gap: 16px; }
+    .splits-detail { grid-template-columns: 1fr 1fr; gap: 20px; }
+    .splits-toggle { padding: 3px 8px; }
+    .runs-table { font-size: 0.82rem; }
+    .runs-table th { padding: 10px 16px; }
+    .runs-table td { padding: 10px 16px; }
+    .wk-header { grid-template-columns: 80px 1fr 60px 55px 90px; gap: 0; }
+    .wk-title { white-space: normal; overflow: visible; }
+    .wk-stat { display: block; }
   }
 </style>
 </head>
@@ -677,11 +698,11 @@
               <th>Name</th>
               <th>Distance</th>
               <th>Pace</th>
-              <th>Duration</th>
-              <th>Elev</th>
-              <th>Max HR</th>
-              <th>Cadence</th>
-              <th>Cal</th>
+              <th class="col-landscape">Duration</th>
+              <th class="col-landscape">Elev</th>
+              <th class="col-landscape">Max HR</th>
+              <th class="col-landscape">Cadence</th>
+              <th class="col-landscape">Cal</th>
               <th>Splits</th>
             </tr>
           </thead>
@@ -713,7 +734,7 @@
           <div class="trend-card-sub" id="trendTSBSub"></div>
         </div>
       </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div class="pace-grid">
         <div class="chart-area" id="chartPaceCurve"></div>
         <div class="chart-area" id="chartElapsedCurve"></div>
       </div>
@@ -850,38 +871,42 @@
     }, { staticPlot: true, responsive: true, displayModeBar: false });
   }
 
+  // -- Responsive helper --
+  function isMobile() { return window.innerWidth < 600; }
+
   // -- Plotly layout base --
   function baseLayout(title, xTitle, yTitle, extra) {
+    var m = isMobile();
     var layout = {
       paper_bgcolor: '#141b2d',
       plot_bgcolor: '#141b2d',
       font: { color: '#94a3b8', family: 'DM Sans, sans-serif' },
       title: {
         text: title,
-        font: { size: 14, color: '#e2e8f0', family: 'DM Sans, sans-serif' },
+        font: { size: m ? 13 : 14, color: '#e2e8f0', family: 'DM Sans, sans-serif' },
         x: 0.02,
         xanchor: 'left'
       },
       xaxis: {
-        title: xTitle,
+        title: m ? '' : xTitle,
         gridcolor: '#1e293b',
         linecolor: '#1e293b',
-        tickfont: { color: '#94a3b8', family: 'DM Sans, sans-serif', size: 11 },
+        tickfont: { color: '#94a3b8', family: 'DM Sans, sans-serif', size: m ? 10 : 11 },
         zeroline: false
       },
       yaxis: {
-        title: yTitle,
+        title: m ? '' : yTitle,
         gridcolor: '#1e293b',
         linecolor: '#1e293b',
-        tickfont: { color: '#94a3b8', family: 'Space Mono, monospace', size: 11 },
+        tickfont: { color: '#94a3b8', family: 'Space Mono, monospace', size: m ? 10 : 11 },
         zeroline: false
       },
-      margin: { t: 48, b: 44, l: 70, r: 16 },
+      margin: { t: m ? 36 : 48, b: m ? 32 : 44, l: m ? 42 : 70, r: m ? 12 : 16 },
       hovermode: 'x unified',
       hoverlabel: {
         bgcolor: '#1e293b',
         bordercolor: '#2a3650',
-        font: { family: 'DM Sans, sans-serif', color: '#f1f5f9', size: 13 }
+        font: { family: 'DM Sans, sans-serif', color: '#f1f5f9', size: m ? 12 : 13 }
       }
     };
     if (extra) { Object.keys(extra).forEach(function(k) { layout[k] = extra[k]; }); }
@@ -1156,22 +1181,27 @@
       tr.appendChild(tdPace);
 
       var tdDur = document.createElement('td');
+      tdDur.className = 'col-landscape';
       tdDur.textContent = r.duration_min != null ? r.duration_min.toFixed(1) + ' min' : '---';
       tr.appendChild(tdDur);
 
       var tdElev = document.createElement('td');
+      tdElev.className = 'col-landscape';
       tdElev.textContent = r.elevation_ft != null ? r.elevation_ft + ' ft' : '---';
       tr.appendChild(tdElev);
 
       var tdMaxHR = document.createElement('td');
+      tdMaxHR.className = 'col-landscape';
       tdMaxHR.textContent = r.max_hr != null ? Math.round(r.max_hr) + ' bpm' : '---';
       tr.appendChild(tdMaxHR);
 
       var tdCadence = document.createElement('td');
+      tdCadence.className = 'col-landscape';
       tdCadence.textContent = r.cadence_spm != null ? r.cadence_spm + ' spm' : '---';
       tr.appendChild(tdCadence);
 
       var tdCal = document.createElement('td');
+      tdCal.className = 'col-landscape';
       tdCal.textContent = r.calories != null ? r.calories : '---';
       tr.appendChild(tdCal);
 
@@ -1196,7 +1226,7 @@
           var detailRow = document.createElement('tr');
           detailRow.className = 'splits-row';
           var detailTd = document.createElement('td');
-          detailTd.colSpan = 10;
+          detailTd.colSpan = window.innerWidth >= 600 ? 10 : 5;
           if (r.polyline) {
             var wrapper = document.createElement('div');
             wrapper.className = 'splits-detail';
@@ -1388,9 +1418,13 @@
         return 'rgb(' + r + ',' + g + ',' + b + ')';
       });
 
-      var chartH = 60 + labels.length * 38;
+      var m = isMobile();
+      var chartH = 60 + labels.length * (m ? 48 : 38);
 
       // Left chart: Pace per mile
+      var paceTickVals = m ? [7*60, 9*60, 11*60] : [6*60, 7*60, 8*60, 9*60, 10*60, 11*60];
+      var paceTickText = m ? ['7:00', '9:00', '11:00'] : ['6:00', '7:00', '8:00', '9:00', '10:00', '11:00'];
+
       Plotly.newPlot($('chartPaceCurve'), [{
         y: labels, x: paceSecs, type: 'bar', orientation: 'h',
         marker: { color: paceColors, opacity: 0.9 },
@@ -1401,18 +1435,18 @@
       }], baseLayout('Pace per Mile', '', '', {
         xaxis: {
           title: '', gridcolor: '#1e293b', linecolor: '#1e293b',
-          tickfont: { color: '#94a3b8', family: 'Space Mono, monospace', size: 11 },
+          tickfont: { color: '#94a3b8', family: 'Space Mono, monospace', size: m ? 10 : 11 },
           zeroline: false,
-          tickvals: [6*60, 7*60, 8*60, 9*60, 10*60, 11*60],
-          ticktext: ['6:00', '7:00', '8:00', '9:00', '10:00', '11:00'],
+          tickvals: paceTickVals,
+          ticktext: paceTickText,
           range: [Math.floor(minPace * 0.9), Math.ceil(maxPace * 1.25)]
         },
         yaxis: {
           title: '', gridcolor: 'transparent', linecolor: 'transparent',
-          tickfont: { color: '#e2e8f0', family: 'DM Sans, sans-serif', size: 13 },
+          tickfont: { color: '#e2e8f0', family: 'DM Sans, sans-serif', size: m ? 13 : 13 },
           zeroline: false
         },
-        margin: { t: 48, b: 44, l: 55, r: 80 },
+        margin: { t: m ? 36 : 48, b: m ? 32 : 44, l: 48, r: 75 },
         height: chartH
       }), plotConfig);
 
@@ -1420,16 +1454,14 @@
       var maxElapsed = Math.max.apply(null, elapsedSecs);
       var elapsedColors = elapsedSecs.map(function(s) {
         var t = s / maxElapsed;
-        var r = Math.round(59 + t * 0);
-        var g = Math.round(130 - t * 0);
-        var b = Math.round(246 + t * 0);
         return 'rgba(59,130,246,' + (0.4 + t * 0.5).toFixed(2) + ')';
       });
 
-      // Build tick values for elapsed time axis (pick ~5 ticks)
+      // Build tick values for elapsed time axis
       var elapsedTicks = [];
       var elapsedTickTexts = [];
       var step = maxElapsed <= 600 ? 120 : maxElapsed <= 1800 ? 600 : 1200;
+      if (m) step *= 2;
       for (var t = 0; t <= maxElapsed + step; t += step) {
         elapsedTicks.push(t);
         elapsedTickTexts.push(fmtElapsed(t));
@@ -1445,7 +1477,7 @@
       }], baseLayout('Elapsed Time', '', '', {
         xaxis: {
           title: '', gridcolor: '#1e293b', linecolor: '#1e293b',
-          tickfont: { color: '#94a3b8', family: 'Space Mono, monospace', size: 11 },
+          tickfont: { color: '#94a3b8', family: 'Space Mono, monospace', size: m ? 10 : 11 },
           zeroline: false,
           tickvals: elapsedTicks,
           ticktext: elapsedTickTexts,
@@ -1453,25 +1485,36 @@
         },
         yaxis: {
           title: '', gridcolor: 'transparent', linecolor: 'transparent',
-          tickfont: { color: '#e2e8f0', family: 'DM Sans, sans-serif', size: 13 },
+          tickfont: { color: '#e2e8f0', family: 'DM Sans, sans-serif', size: m ? 13 : 13 },
           zeroline: false
         },
-        margin: { t: 48, b: 44, l: 55, r: 70 },
+        margin: { t: m ? 36 : 48, b: m ? 32 : 44, l: 48, r: 75 },
         height: chartH
       }), plotConfig);
     }
 
     // -- HR Curve chart --
     if (hrCurveData && hrCurveData.efforts && hrCurveData.efforts.length > 0) {
-      var hrLabels = hrCurveData.efforts.map(function(e) { return e.label; });
+      var m = isMobile();
+      var hrLabels = hrCurveData.efforts.map(function(e) {
+        return m ? e.label.replace('min', 'm') : e.label;
+      });
       var hrs = hrCurveData.efforts.map(function(e) { return e.hr_bpm; });
 
       Plotly.newPlot($('chartHRCurve'), [{
         x: hrLabels, y: hrs, type: 'scatter', mode: 'lines+markers',
         line: { color: '#ef4444', width: 2 },
-        marker: { size: 6, color: '#ef4444' },
+        marker: { size: m ? 10 : 6, color: '#ef4444' },
         hovertemplate: '%{x}: %{y} bpm<extra></extra>'
-      }], baseLayout('HR Curve — Peak Heart Rate', '', 'HR (bpm)'), plotConfig);
+      }], baseLayout('HR Curve — Peak Heart Rate', '', 'HR (bpm)', {
+        xaxis: {
+          tickfont: { color: '#94a3b8', family: 'Space Mono, monospace', size: m ? 10 : 11 },
+          tickangle: 0,
+          dtick: m ? 2 : 1,
+          gridcolor: '#1e293b', linecolor: '#1e293b', zeroline: false
+        },
+        margin: { t: m ? 36 : 48, b: m ? 40 : 44, l: 42, r: 16 }
+      }), plotConfig);
     }
   }
 
@@ -1893,6 +1936,13 @@
     if (name === 'strength') renderStrengthPanel();
     if (name === 'training') renderTrainingPanel();
   }
+
+  // -- Re-render on resize (orientation change) --
+  var _resizeTimer;
+  window.addEventListener('resize', function() {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(function() { switchPanel(activePanel); }, 250);
+  });
 
   // -- Data loading --
   function buildQS() {
