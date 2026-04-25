@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
@@ -34,6 +34,14 @@ app.include_router(strava_router)
 
 from webhook.teller import router as teller_router
 app.include_router(teller_router)
+
+@app.get("/sw.js")
+def service_worker():
+    return FileResponse(
+        Path(__file__).parent / "static" / "sw.js",
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/"},
+    )
 
 @app.get("/dashboard")
 def dashboard_redirect():

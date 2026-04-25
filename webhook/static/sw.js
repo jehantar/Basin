@@ -1,7 +1,9 @@
-const CACHE = 'basin-shell-v1';
+const CACHE = 'basin-shell-v2';
 const SHELL = [
   'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap',
   'https://cdn.plot.ly/plotly-2.35.2.min.js',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
 ];
 
 self.addEventListener('install', e => {
@@ -18,9 +20,16 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// Network-first: always fetch live data, fall back to cache for shell assets
+// Network-first: try network, cache successful responses, fall back to cache
 self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
   e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
+    fetch(e.request).then(res => {
+      if (res.ok) {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+      }
+      return res;
+    }).catch(() => caches.match(e.request))
   );
 });
