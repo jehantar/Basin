@@ -3,9 +3,11 @@
 import json
 import logging
 import os
+from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from shared.db import get_session, bulk_upsert
@@ -15,6 +17,7 @@ logger = logging.getLogger("basin.webhook")
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Basin Webhook")
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 app.include_router(dashboard_router)
 
 from webhook.finance import router as finance_router
