@@ -2,6 +2,7 @@
 
 import json
 import os
+from datetime import timedelta
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
@@ -246,7 +247,6 @@ def _find_strava_match(strava_by_time: dict, start_time) -> tuple | None:
     """Fuzzy-match a Strava activity by minute-level timestamp (±2 min)."""
     if not start_time:
         return None
-    from datetime import timedelta
     key = start_time.replace(second=0, microsecond=0)
     match = strava_by_time.get(key)
     if match:
@@ -318,15 +318,17 @@ def get_vo2max_data(start: str | None = None, end: str | None = None):
         peak_row = session.execute(text("""
             SELECT round(vo2max::numeric, 1) as vo2max, date
             FROM (
-                SELECT value as vo2max,
-                       (recorded_at AT TIME ZONE 'America/Los_Angeles')::date as date
-                FROM healthkit.metrics
-                WHERE metric_type = 'vo2max'
+                (SELECT value as vo2max,
+                        (recorded_at AT TIME ZONE 'America/Los_Angeles')::date as date
+                 FROM healthkit.metrics
+                 WHERE metric_type = 'vo2max'
+                 ORDER BY value DESC LIMIT 1)
                 UNION ALL
-                SELECT vo2max_running as vo2max, date
-                FROM garmin.daily_summary
-                WHERE vo2max_running IS NOT NULL
-            ) combined
+                (SELECT vo2max_running as vo2max, date
+                 FROM garmin.daily_summary
+                 WHERE vo2max_running IS NOT NULL
+                 ORDER BY vo2max_running DESC LIMIT 1)
+            ) peaks
             ORDER BY vo2max DESC
             LIMIT 1
         """)).fetchone()

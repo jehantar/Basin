@@ -90,16 +90,11 @@ class GarminCollector(BaseCollector):
                     _get(data, "vigorousIntensityMinutes"),
                 ),
                 "vo2max_running": _get(data, "vo2MaxValue"),
-                "respiration_avg": _get(data, "averageSpo2"),  # mapped below
+                "respiration_avg": _get(data, "averageRespirationRate") or _get(data, "avgWakingRespirationValue"),
                 "spo2_avg": _get(data, "averageSpo2"),
                 "raw_json": json.dumps(data),
             })
             time.sleep(DAILY_METRIC_DELAY)
-
-        # Fix: respiration comes from a different field
-        for row in rows:
-            raw = json.loads(row["raw_json"]) if row["raw_json"] else {}
-            row["respiration_avg"] = _get(raw, "averageRespirationRate") or _get(raw, "avgWakingRespirationValue")
 
         count = bulk_upsert(session, "garmin.daily_summary", rows, conflict_columns=["date"])
         logger.info(f"daily_summary: {count} rows upserted")
