@@ -81,10 +81,11 @@ def health_check():
 @app.post("/healthkit/webhook")
 async def healthkit_webhook(request: Request):
     """Receive HealthKit data from Health Auto Export app."""
-    if HEALTHKIT_WEBHOOK_KEY:
-        api_key = request.headers.get("X-API-Key", "")
-        if api_key != HEALTHKIT_WEBHOOK_KEY:
-            return JSONResponse(status_code=401, content={"error": "invalid api key"})
+    if not HEALTHKIT_WEBHOOK_KEY:
+        return JSONResponse(status_code=410, content={"error": "HealthKit webhook disabled (switched to Garmin)"})
+    api_key = request.headers.get("X-API-Key", "")
+    if api_key != HEALTHKIT_WEBHOOK_KEY:
+        return JSONResponse(status_code=401, content={"error": "invalid api key"})
 
     body = await request.json()
     data = body.get("data", {})
