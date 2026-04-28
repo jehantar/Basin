@@ -636,7 +636,10 @@
 
   <div class="header">
     <h1>Basin <span>/</span> Fitness</h1>
-    <span class="sync-info" id="syncInfo">--:--</span>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="sync-info" id="syncInfo">--:--</span>
+      <button id="syncBtn" style="font-family:var(--mono);font-size:0.68rem;padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);cursor:pointer;transition:all 0.2s;" title="Sync Garmin data now">Sync</button>
+    </div>
   </div>
 
   <div class="error-banner" id="errorBanner">
@@ -2286,6 +2289,37 @@
   }
 
   // -- Event listeners --
+  $('syncBtn').addEventListener('click', function() {
+    var btn = $('syncBtn');
+    btn.textContent = 'Syncing...';
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    fetch('/garmin/sync', {method: 'POST'})
+      .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+      .then(function(res) {
+        if (res.ok) {
+          btn.textContent = res.data.rows_upserted + ' rows';
+          btn.style.color = 'var(--accent)';
+          setTimeout(function() { loadAll(); }, 500);
+        } else {
+          btn.textContent = 'Error';
+          btn.style.color = 'var(--alert)';
+        }
+        setTimeout(function() {
+          btn.textContent = 'Sync';
+          btn.style.color = 'var(--text-secondary)';
+          btn.disabled = false;
+          btn.style.opacity = '1';
+        }, 3000);
+      })
+      .catch(function() {
+        btn.textContent = 'Error';
+        btn.style.color = 'var(--alert)';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+      });
+  });
+
   cardRunning.addEventListener('click', function() { switchPanel('running'); });
   cardVo2max.addEventListener('click', function() { switchPanel('vo2max'); });
   cardStrength.addEventListener('click', function() { switchPanel('strength'); });

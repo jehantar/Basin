@@ -78,6 +78,49 @@ def health_check():
     return {"status": "ok"}
 
 
+@app.post("/garmin/sync")
+async def garmin_sync():
+    """Manually trigger Garmin data sync."""
+    import threading
+    from collectors.garmin import GarminCollector
+
+    if not os.environ.get("GARMIN_EMAIL"):
+        return JSONResponse(status_code=503, content={"error": "Garmin not configured"})
+
+    # Run in a thread to avoid blocking the event loop
+    result = {"status": "error", "error": None, "rows": 0}
+
+    def run_collector():
+        try:
+            collector = GarminCollector()
+            collector.run()
+            # Read latest run result from DB
+            with get_session() as session:
+                row = session.execute(text("""
+                    SELECT status, rows_upserted, error_message
+                    FROM basin.collector_runs
+                    WHERE collector = 'garmin'
+                    ORDER BY started_at DESC LIMIT 1
+                """)).fetchone()
+                if row:
+                    result["status"] = row[0]
+                    result["rows"] = row[1] or 0
+                    result["error"] = row[2]
+        except Exception as e:
+            result["error"] = str(e)
+
+    thread = threading.Thread(target=run_collector)
+    thread.start()
+    thread.join(timeout=120)
+
+    if thread.is_alive():
+        return JSONResponse(status_code=504, content={"error": "Sync timed out (still running in background)"})
+
+    if result["status"] == "success":
+        return {"status": "success", "rows_upserted": result["rows"]}
+    return JSONResponse(status_code=500, content={"error": result["error"] or "Sync failed"})
+
+
 @app.post("/healthkit/webhook")
 async def healthkit_webhook(request: Request):
     """Receive HealthKit data from Health Auto Export app."""
