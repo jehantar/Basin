@@ -103,7 +103,8 @@ def get_running_data(start: str | None = None, end: str | None = None):
         # --- Strava enrichment (fallback for splits/GPS when Garmin data missing) ---
         strava_rows = session.execute(text("""
             SELECT name, start_date, total_elevation_gain_m, max_heartrate,
-                   calories, average_cadence, splits, map_polyline
+                   calories, average_cadence, splits, map_polyline,
+                   average_heartrate
             FROM strava.activities
             WHERE sport_type = 'Run'
               AND (start_date AT TIME ZONE 'America/Los_Angeles')::date BETWEEN :start AND :end
@@ -154,7 +155,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
                 "distance_mi": distance_mi,
                 "avg_power": round(row[8]) if row[8] else None,
                 "cadence_spm": cadence,
-                "max_hr": row[10],
+                "avg_hr": row[9],
                 "calories": round(row[13]) if row[13] else None,
                 "splits": splits,
                 "elevation_ft": elevation_ft,
@@ -191,7 +192,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
             strava = _find_strava_match(strava_by_time, start_time)
             run_name = strava[0] if strava else None
             strava_elev = float(strava[2]) if strava and strava[2] is not None else None
-            max_hr = float(strava[3]) if strava and strava[3] else None
+            avg_hr = float(strava[8]) if strava and strava[8] else None
             calories = round(float(strava[4])) if strava and strava[4] else None
             strava_cadence = round(float(strava[5]) * 2) if strava and strava[5] else None
             splits = _parse_splits_json(strava[6]) if strava else None
@@ -215,7 +216,7 @@ def get_running_data(start: str | None = None, end: str | None = None):
                 "distance_mi": distance_mi,
                 "avg_power": avg_power,
                 "cadence_spm": cadence,
-                "max_hr": max_hr,
+                "avg_hr": avg_hr,
                 "calories": calories,
                 "splits": splits,
                 "elevation_ft": elevation_ft,

@@ -754,7 +754,7 @@
               <th>Pace</th>
               <th class="col-landscape">Duration</th>
               <th class="col-landscape">Elev</th>
-              <th class="col-landscape">Max HR</th>
+              <th class="col-landscape">Avg HR</th>
               <th class="col-landscape">Cadence</th>
               <th class="col-landscape">Cal</th>
               <th>Splits</th>
@@ -1429,7 +1429,7 @@
 
       var tdMaxHR = document.createElement('td');
       tdMaxHR.className = 'col-landscape';
-      tdMaxHR.textContent = r.max_hr != null ? Math.round(r.max_hr) + ' bpm' : '---';
+      tdMaxHR.textContent = r.avg_hr != null ? Math.round(r.avg_hr) + ' bpm' : '---';
       tr.appendChild(tdMaxHR);
 
       var tdCadence = document.createElement('td');
