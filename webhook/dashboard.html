@@ -37,6 +37,10 @@
     --color-vo2max: #a78bfa;
     --color-strength: #22c55e;
     --color-training: #f59e0b;
+    --color-battery: #06b6d4;
+    --color-readiness: #f97316;
+    --color-sleep: #8b5cf6;
+    --color-hrv: #ec4899;
     --mono: 'Space Mono', monospace;
     --sans: 'DM Sans', sans-serif;
   }
@@ -149,15 +153,23 @@
     transform: translateY(-1px);
   }
   .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .card.active-running  { border-color: var(--color-running); box-shadow: 0 0 24px rgba(59,130,246,0.12); }
-  .card.active-vo2max   { border-color: var(--color-vo2max); box-shadow: 0 0 24px rgba(167,139,250,0.12); }
-  .card.active-strength { border-color: var(--color-strength); box-shadow: 0 0 24px rgba(34,197,94,0.12); }
-  .card.active-training { border-color: var(--color-training); box-shadow: 0 0 24px rgba(245,158,11,0.12); }
+  .card.active-running   { border-color: var(--color-running); box-shadow: 0 0 24px rgba(59,130,246,0.12); }
+  .card.active-vo2max    { border-color: var(--color-vo2max); box-shadow: 0 0 24px rgba(167,139,250,0.12); }
+  .card.active-strength  { border-color: var(--color-strength); box-shadow: 0 0 24px rgba(34,197,94,0.12); }
+  .card.active-training  { border-color: var(--color-training); box-shadow: 0 0 24px rgba(245,158,11,0.12); }
+  .card.active-battery   { border-color: var(--color-battery); box-shadow: 0 0 24px rgba(6,182,212,0.12); }
+  .card.active-readiness { border-color: var(--color-readiness); box-shadow: 0 0 24px rgba(249,115,22,0.12); }
+  .card.active-sleep     { border-color: var(--color-sleep); box-shadow: 0 0 24px rgba(139,92,246,0.12); }
+  .card.active-hrv       { border-color: var(--color-hrv); box-shadow: 0 0 24px rgba(236,72,153,0.12); }
 
-  .card.running-card::before { background: var(--color-running); }
-  .card.vo2max-card::before { background: var(--color-vo2max); }
-  .card.strength-card::before { background: var(--color-strength); }
-  .card.training-card::before { background: var(--color-training); }
+  .card.running-card::before   { background: var(--color-running); }
+  .card.vo2max-card::before    { background: var(--color-vo2max); }
+  .card.strength-card::before  { background: var(--color-strength); }
+  .card.training-card::before  { background: var(--color-training); }
+  .card.battery-card::before   { background: var(--color-battery); }
+  .card.readiness-card::before { background: var(--color-readiness); }
+  .card.sleep-card::before     { background: var(--color-sleep); }
+  .card.hrv-card::before       { background: var(--color-hrv); }
 
   .card-label {
     font-size: 0.7rem;
@@ -166,10 +178,14 @@
     letter-spacing: 0.1em;
     margin-bottom: 12px;
   }
-  .card-label.running  { color: var(--color-running); }
-  .card-label.vo2max   { color: var(--color-vo2max); }
-  .card-label.strength { color: var(--color-strength); }
-  .card-label.training { color: var(--color-training); }
+  .card-label.running   { color: var(--color-running); }
+  .card-label.vo2max    { color: var(--color-vo2max); }
+  .card-label.strength  { color: var(--color-strength); }
+  .card-label.training  { color: var(--color-training); }
+  .card-label.battery   { color: var(--color-battery); }
+  .card-label.readiness { color: var(--color-readiness); }
+  .card-label.sleep     { color: var(--color-sleep); }
+  .card-label.hrv       { color: var(--color-hrv); }
 
   .card-value {
     font-family: var(--mono);
@@ -191,6 +207,13 @@
     margin-bottom: 8px;
   }
   .sparkline { height: 40px; }
+
+  .cards-recovery {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
 
   /* ── Calendar Heatmap ── */
   .calendar-strip {
@@ -579,6 +602,7 @@
     .nav-tab { padding: 16px 28px; font-size: 0.85rem; }
     .header h1 { font-size: 1.75rem; }
     .cards { grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .cards-recovery { grid-template-columns: repeat(4, 1fr); gap: 20px; }
     .card { padding: 24px 28px; }
     .card-value { font-size: 2.25rem; }
     .detail-panel { padding: 28px; }
@@ -612,7 +636,10 @@
 
   <div class="header">
     <h1>Basin <span>/</span> Fitness</h1>
-    <span class="sync-info" id="syncInfo">--:--</span>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="sync-info" id="syncInfo">--:--</span>
+      <button id="syncBtn" style="font-family:var(--mono);font-size:0.68rem;padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);cursor:pointer;transition:all 0.2s;" title="Sync Garmin data now">Sync</button>
+    </div>
   </div>
 
   <div class="error-banner" id="errorBanner">
@@ -648,6 +675,33 @@
       <div class="card-sub" id="trainingSub">&nbsp;</div>
       <div class="card-trend" id="trainingTrend">&nbsp;</div>
       <div class="sparkline" id="sparkTraining"></div>
+    </div>
+  </div>
+
+  <div class="cards cards-recovery">
+    <div class="card battery-card" id="cardBattery" tabindex="0" role="button" aria-label="Body Battery">
+      <div class="card-label battery">Body Battery</div>
+      <div class="card-value" id="batteryValue">--</div>
+      <div class="card-sub" id="batterySub">&nbsp;</div>
+      <div class="sparkline" id="sparkBattery"></div>
+    </div>
+    <div class="card readiness-card" id="cardReadiness" tabindex="0" role="button" aria-label="Training Readiness">
+      <div class="card-label readiness">Readiness</div>
+      <div class="card-value" id="readinessValue">--</div>
+      <div class="card-sub" id="readinessSub">&nbsp;</div>
+      <div class="sparkline" id="sparkReadiness"></div>
+    </div>
+    <div class="card sleep-card" id="cardSleep" tabindex="0" role="button" aria-label="Sleep">
+      <div class="card-label sleep">Sleep</div>
+      <div class="card-value" id="sleepValue">--</div>
+      <div class="card-sub" id="sleepSub">&nbsp;</div>
+      <div class="sparkline" id="sparkSleep"></div>
+    </div>
+    <div class="card hrv-card" id="cardHrv" tabindex="0" role="button" aria-label="HRV">
+      <div class="card-label hrv">HRV</div>
+      <div class="card-value" id="hrvValue">--</div>
+      <div class="card-sub" id="hrvSub">&nbsp;</div>
+      <div class="sparkline" id="sparkHrv"></div>
     </div>
   </div>
 
@@ -700,7 +754,7 @@
               <th>Pace</th>
               <th class="col-landscape">Duration</th>
               <th class="col-landscape">Elev</th>
-              <th class="col-landscape">Max HR</th>
+              <th class="col-landscape">Avg HR</th>
               <th class="col-landscape">Cadence</th>
               <th class="col-landscape">Cal</th>
               <th>Splits</th>
@@ -741,6 +795,35 @@
       <div class="chart-area" id="chartHRCurve"></div>
     </div>
 
+    <div class="panel" id="panelRecovery">
+      <div class="trend-cards">
+        <div class="trend-card">
+          <div class="trend-card-label">Body Battery</div>
+          <div class="trend-card-value" id="recBattery">---</div>
+          <div class="trend-card-sub" id="recBatterySub"></div>
+        </div>
+        <div class="trend-card">
+          <div class="trend-card-label">Readiness</div>
+          <div class="trend-card-value" id="recReadiness">---</div>
+          <div class="trend-card-sub" id="recReadinessSub"></div>
+        </div>
+        <div class="trend-card">
+          <div class="trend-card-label">Sleep Score</div>
+          <div class="trend-card-value" id="recSleep">---</div>
+          <div class="trend-card-sub" id="recSleepSub"></div>
+        </div>
+        <div class="trend-card">
+          <div class="trend-card-label">HRV</div>
+          <div class="trend-card-value" id="recHrv">---</div>
+          <div class="trend-card-sub" id="recHrvSub"></div>
+        </div>
+      </div>
+      <div class="chart-area" id="chartBattery"></div>
+      <div class="chart-area" id="chartSleep"></div>
+      <div class="chart-area" id="chartHrv"></div>
+      <div class="chart-area" id="chartReadiness"></div>
+    </div>
+
     <div class="panel" id="panelStrength">
       <div class="workout-tabs" id="workoutTabs" role="tablist"></div>
       <div class="trend-cards">
@@ -779,14 +862,22 @@
   var trnData = null;
   var paceCurveData = null;
   var hrCurveData = null;
+  var batteryData = null;
+  var readinessData = null;
+  var sleepData = null;
+  var hrvData = null;
   var activePreset = null;
 
   // -- DOM refs --
   function $(id) { return document.getElementById(id); }
-  var cardRunning  = $('cardRunning');
-  var cardVo2max   = $('cardVo2max');
-  var cardStrength = $('cardStrength');
-  var cardTraining = $('cardTraining');
+  var cardRunning   = $('cardRunning');
+  var cardVo2max    = $('cardVo2max');
+  var cardStrength  = $('cardStrength');
+  var cardTraining  = $('cardTraining');
+  var cardBattery   = $('cardBattery');
+  var cardReadiness = $('cardReadiness');
+  var cardSleep     = $('cardSleep');
+  var cardHrv       = $('cardHrv');
   var startInput   = $('startDate');
   var endInput     = $('endDate');
   var errorBanner  = $('errorBanner');
@@ -1006,6 +1097,152 @@
     }
   }
 
+  function updateRecoveryCards() {
+    // Body Battery
+    if (batteryData && batteryData.latest && batteryData.latest.highest != null) {
+      var bb = batteryData.latest;
+      $('batteryValue').textContent = bb.highest;
+      $('batterySub').textContent = 'Low ' + (bb.lowest || '--') + ' \u00b7 +' + (bb.charged || 0) + ' / -' + (bb.drained || 0);
+      var bbVals = batteryData.days.filter(function(d) { return d.highest != null; }).map(function(d) { return d.highest; });
+      if (bbVals.length > 1) renderSparkline('sparkBattery', bbVals.slice(-14), '#06b6d4');
+    } else {
+      $('batteryValue').textContent = '--';
+      $('batterySub').textContent = 'No data';
+    }
+
+    // Training Readiness
+    if (readinessData && readinessData.latest && readinessData.latest.score != null) {
+      var tr = readinessData.latest;
+      $('readinessValue').textContent = tr.score;
+      $('readinessSub').textContent = tr.level || '';
+      var trVals = readinessData.days.filter(function(d) { return d.score != null; }).map(function(d) { return d.score; });
+      if (trVals.length > 1) renderSparkline('sparkReadiness', trVals.slice(-14), '#f97316');
+    } else {
+      $('readinessValue').textContent = '--';
+      $('readinessSub').textContent = 'No data';
+    }
+
+    // Sleep
+    if (sleepData && sleepData.latest && sleepData.latest.sleep_score != null) {
+      var sl = sleepData.latest;
+      $('sleepValue').textContent = sl.sleep_score;
+      $('sleepSub').textContent = (sl.total_sleep_hrs || '--') + 'h sleep';
+      var slVals = sleepData.days.filter(function(d) { return d.sleep_score != null; }).map(function(d) { return d.sleep_score; });
+      if (slVals.length > 1) renderSparkline('sparkSleep', slVals.slice(-14), '#8b5cf6');
+    } else {
+      $('sleepValue').textContent = '--';
+      $('sleepSub').textContent = 'No data';
+    }
+
+    // HRV
+    if (hrvData && hrvData.latest && hrvData.latest.last_night_avg_ms != null) {
+      var hv = hrvData.latest;
+      $('hrvValue').textContent = Math.round(hv.last_night_avg_ms);
+      $('hrvSub').textContent = (hv.status || '') + ' \u00b7 Avg ' + Math.round(hv.weekly_avg_ms || 0) + 'ms';
+      var hvVals = hrvData.days.filter(function(d) { return d.last_night_avg_ms != null; }).map(function(d) { return d.last_night_avg_ms; });
+      if (hvVals.length > 1) renderSparkline('sparkHrv', hvVals.slice(-14), '#ec4899');
+    } else {
+      $('hrvValue').textContent = '--';
+      $('hrvSub').textContent = 'No data';
+    }
+  }
+
+  function renderRecoveryPanel() {
+    // Update trend cards
+    if (batteryData && batteryData.latest && batteryData.latest.highest != null) {
+      var bb = batteryData.latest;
+      $('recBattery').textContent = bb.highest;
+      $('recBatterySub').textContent = 'High / Low: ' + bb.lowest;
+    }
+    if (readinessData && readinessData.latest && readinessData.latest.score != null) {
+      $('recReadiness').textContent = readinessData.latest.score;
+      $('recReadinessSub').textContent = readinessData.latest.level || '';
+    }
+    if (sleepData && sleepData.latest && sleepData.latest.sleep_score != null) {
+      $('recSleep').textContent = sleepData.latest.sleep_score;
+      $('recSleepSub').textContent = (sleepData.latest.total_sleep_hrs || '--') + 'h';
+    }
+    if (hrvData && hrvData.latest && hrvData.latest.last_night_avg_ms != null) {
+      $('recHrv').textContent = Math.round(hrvData.latest.last_night_avg_ms) + 'ms';
+      $('recHrvSub').textContent = hrvData.latest.status || '';
+    }
+
+    var plotConfig = {displayModeBar: false, responsive: true};
+    var plotLayout = {
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+      font: {family: 'DM Sans, sans-serif', color: '#94a3b8', size: 11},
+      margin: {t: 30, r: 16, b: 36, l: 48},
+      xaxis: {gridcolor: '#1e293b', tickformat: '%b %d', showgrid: false},
+      yaxis: {gridcolor: '#1e293b', zeroline: false},
+      showlegend: false, height: 220,
+    };
+
+    // Body Battery chart (area)
+    if (batteryData && batteryData.days.length > 0) {
+      var bbDates = batteryData.days.map(function(d) { return d.date; });
+      var bbHigh = batteryData.days.map(function(d) { return d.highest; });
+      var bbLow = batteryData.days.map(function(d) { return d.lowest; });
+      Plotly.newPlot('chartBattery', [
+        {x: bbDates, y: bbLow, type: 'scatter', mode: 'lines', name: 'Low',
+         line: {color: '#06b6d4', width: 1, dash: 'dot'}},
+        {x: bbDates, y: bbHigh, type: 'scatter', mode: 'lines', name: 'High',
+         line: {color: '#06b6d4', width: 2}, fill: 'tonexty', fillcolor: 'rgba(6,182,212,0.08)'},
+      ], Object.assign({}, plotLayout, {title: {text: 'Body Battery', font: {size: 13, color: '#f1f5f9'}}}), plotConfig);
+    }
+
+    // Sleep chart (stacked bars)
+    if (sleepData && sleepData.days.length > 0) {
+      var slDates = sleepData.days.map(function(d) { return d.date; });
+      Plotly.newPlot('chartSleep', [
+        {x: slDates, y: sleepData.days.map(function(d) { return d.deep_sleep_hrs; }),
+         type: 'bar', name: 'Deep', marker: {color: '#1e40af'}},
+        {x: slDates, y: sleepData.days.map(function(d) { return d.rem_sleep_hrs; }),
+         type: 'bar', name: 'REM', marker: {color: '#7c3aed'}},
+        {x: slDates, y: sleepData.days.map(function(d) { return d.light_sleep_hrs; }),
+         type: 'bar', name: 'Light', marker: {color: '#a78bfa'}},
+        {x: slDates, y: sleepData.days.map(function(d) { return d.awake_hrs; }),
+         type: 'bar', name: 'Awake', marker: {color: '#475569'}},
+      ], Object.assign({}, plotLayout, {
+        barmode: 'stack', showlegend: true,
+        legend: {orientation: 'h', y: -0.15, font: {size: 10}},
+        title: {text: 'Sleep Stages', font: {size: 13, color: '#f1f5f9'}},
+      }), plotConfig);
+    }
+
+    // HRV chart (line with baseline band)
+    if (hrvData && hrvData.days.length > 0) {
+      var hvDates = hrvData.days.map(function(d) { return d.date; });
+      var hvAvg = hrvData.days.map(function(d) { return d.last_night_avg_ms; });
+      var hvBaseLow = hrvData.days.map(function(d) { return d.baseline_low_ms; });
+      var hvBaseHigh = hrvData.days.map(function(d) { return d.baseline_upper_ms; });
+      var traces = [
+        {x: hvDates, y: hvBaseLow, type: 'scatter', mode: 'lines', name: 'Baseline Low',
+         line: {color: 'rgba(236,72,153,0.2)', width: 0}, showlegend: false},
+        {x: hvDates, y: hvBaseHigh, type: 'scatter', mode: 'lines', name: 'Baseline',
+         line: {color: 'rgba(236,72,153,0.2)', width: 0}, fill: 'tonexty', fillcolor: 'rgba(236,72,153,0.08)', showlegend: false},
+        {x: hvDates, y: hvAvg, type: 'scatter', mode: 'lines+markers', name: 'Nightly HRV',
+         line: {color: '#ec4899', width: 2}, marker: {size: 4}},
+      ];
+      Plotly.newPlot('chartHrv', traces, Object.assign({}, plotLayout, {
+        title: {text: 'HRV (Nightly Average)', font: {size: 13, color: '#f1f5f9'}},
+        yaxis: {gridcolor: '#1e293b', zeroline: false, title: {text: 'ms', font: {size: 10}}},
+      }), plotConfig);
+    }
+
+    // Training Readiness chart (line)
+    if (readinessData && readinessData.days.length > 0) {
+      var trDates = readinessData.days.map(function(d) { return d.date; });
+      var trScores = readinessData.days.map(function(d) { return d.score; });
+      var trColors = trScores.map(function(s) { return s >= 75 ? '#22c55e' : s >= 50 ? '#f59e0b' : '#ef4444'; });
+      Plotly.newPlot('chartReadiness', [
+        {x: trDates, y: trScores, type: 'bar', marker: {color: trColors}},
+      ], Object.assign({}, plotLayout, {
+        title: {text: 'Training Readiness', font: {size: 13, color: '#f1f5f9'}},
+        yaxis: {gridcolor: '#1e293b', zeroline: false, range: [0, 100]},
+      }), plotConfig);
+    }
+  }
+
   function decodePolyline(encoded) {
     var points = [], lat = 0, lng = 0, i = 0;
     while (i < encoded.length) {
@@ -1192,7 +1429,7 @@
 
       var tdMaxHR = document.createElement('td');
       tdMaxHR.className = 'col-landscape';
-      tdMaxHR.textContent = r.max_hr != null ? Math.round(r.max_hr) + ' bpm' : '---';
+      tdMaxHR.textContent = r.avg_hr != null ? Math.round(r.avg_hr) + ' bpm' : '---';
       tr.appendChild(tdMaxHR);
 
       var tdCadence = document.createElement('td');
@@ -1920,21 +2157,28 @@
   // -- Panel switching --
   function switchPanel(name) {
     activePanel = name;
+    var isRecovery = (name === 'battery' || name === 'readiness' || name === 'sleep' || name === 'hrv');
 
-    cardRunning.className  = 'card running-card' + (name === 'running'  ? ' active-running'  : '');
-    cardVo2max.className   = 'card vo2max-card' + (name === 'vo2max'   ? ' active-vo2max'   : '');
-    cardStrength.className = 'card strength-card' + (name === 'strength' ? ' active-strength' : '');
-    cardTraining.className = 'card training-card' + (name === 'training' ? ' active-training' : '');
+    cardRunning.className   = 'card running-card'   + (name === 'running'   ? ' active-running'   : '');
+    cardVo2max.className    = 'card vo2max-card'     + (name === 'vo2max'    ? ' active-vo2max'    : '');
+    cardStrength.className  = 'card strength-card'   + (name === 'strength'  ? ' active-strength'  : '');
+    cardTraining.className  = 'card training-card'   + (name === 'training'  ? ' active-training'  : '');
+    cardBattery.className   = 'card battery-card'    + (name === 'battery'   ? ' active-battery'   : '');
+    cardReadiness.className = 'card readiness-card'  + (name === 'readiness' ? ' active-readiness' : '');
+    cardSleep.className     = 'card sleep-card'      + (name === 'sleep'     ? ' active-sleep'     : '');
+    cardHrv.className       = 'card hrv-card'        + (name === 'hrv'       ? ' active-hrv'       : '');
 
     $('panelRunning').className  = 'panel' + (name === 'running'  ? ' active' : '');
     $('panelVo2max').className   = 'panel' + (name === 'vo2max'   ? ' active' : '');
     $('panelStrength').className = 'panel' + (name === 'strength' ? ' active' : '');
     $('panelTraining').className = 'panel' + (name === 'training' ? ' active' : '');
+    $('panelRecovery').className = 'panel' + (isRecovery ? ' active' : '');
 
     if (name === 'running')  renderRunningPanel();
     if (name === 'vo2max')   renderVo2maxPanel();
     if (name === 'strength') renderStrengthPanel();
     if (name === 'training') renderTrainingPanel();
+    if (isRecovery)          renderRecoveryPanel();
   }
 
   // -- Re-render on resize (orientation change) --
@@ -1966,6 +2210,14 @@
     $('strengthSub').textContent = '\u00a0';
     $('trainingValue').textContent = '--';
     $('trainingSub').textContent = '\u00a0';
+    $('batteryValue').textContent = '--';
+    $('batterySub').textContent = '\u00a0';
+    $('readinessValue').textContent = '--';
+    $('readinessSub').textContent = '\u00a0';
+    $('sleepValue').textContent = '--';
+    $('sleepSub').textContent = '\u00a0';
+    $('hrvValue').textContent = '--';
+    $('hrvSub').textContent = '\u00a0';
 
     Promise.all([
       fetch('/api/fitness/running' + qs).then(function(r) { if (!r.ok) throw new Error('Running API error: ' + r.status); return r.json(); }),
@@ -1975,6 +2227,10 @@
       fetch('/api/fitness/training-load' + qs).then(function(r) { if (!r.ok) throw new Error('Training Load API error: ' + r.status); return r.json(); }),
       fetch('/api/fitness/pace-curve').then(function(r) { if (!r.ok) throw new Error('Pace Curve API error: ' + r.status); return r.json(); }),
       fetch('/api/fitness/hr-curve').then(function(r) { if (!r.ok) throw new Error('HR Curve API error: ' + r.status); return r.json(); }),
+      fetch('/api/fitness/body-battery' + qs).then(function(r) { return r.ok ? r.json() : {days: [], latest: {}}; }),
+      fetch('/api/fitness/training-readiness' + qs).then(function(r) { return r.ok ? r.json() : {days: [], latest: {}}; }),
+      fetch('/api/fitness/sleep' + qs).then(function(r) { return r.ok ? r.json() : {days: [], latest: {}}; }),
+      fetch('/api/fitness/hrv' + qs).then(function(r) { return r.ok ? r.json() : {days: [], latest: {}}; }),
     ]).then(function(results) {
       runData = results[0];
       vo2Data = results[1];
@@ -1983,6 +2239,10 @@
       trnData = results[4];
       paceCurveData = results[5];
       hrCurveData = results[6];
+      batteryData = results[7];
+      readinessData = results[8];
+      sleepData = results[9];
+      hrvData = results[10];
 
       if (runData.generated_at) {
         var gen = new Date(runData.generated_at);
@@ -1995,6 +2255,7 @@
       updateVo2maxCard();
       updateStrengthCard();
       updateTrainingCard();
+      updateRecoveryCards();
       renderCalendar(calData);
       switchPanel(activePanel);
 
@@ -2028,12 +2289,47 @@
   }
 
   // -- Event listeners --
+  $('syncBtn').addEventListener('click', function() {
+    var btn = $('syncBtn');
+    btn.textContent = 'Syncing...';
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    fetch('/garmin/sync', {method: 'POST'})
+      .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+      .then(function(res) {
+        if (res.ok) {
+          btn.textContent = res.data.rows_upserted + ' rows';
+          btn.style.color = 'var(--accent)';
+          setTimeout(function() { loadAll(); }, 500);
+        } else {
+          btn.textContent = 'Error';
+          btn.style.color = 'var(--alert)';
+        }
+        setTimeout(function() {
+          btn.textContent = 'Sync';
+          btn.style.color = 'var(--text-secondary)';
+          btn.disabled = false;
+          btn.style.opacity = '1';
+        }, 3000);
+      })
+      .catch(function() {
+        btn.textContent = 'Error';
+        btn.style.color = 'var(--alert)';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+      });
+  });
+
   cardRunning.addEventListener('click', function() { switchPanel('running'); });
   cardVo2max.addEventListener('click', function() { switchPanel('vo2max'); });
   cardStrength.addEventListener('click', function() { switchPanel('strength'); });
   cardTraining.addEventListener('click', function() { switchPanel('training'); });
+  cardBattery.addEventListener('click', function() { switchPanel('battery'); });
+  cardReadiness.addEventListener('click', function() { switchPanel('readiness'); });
+  cardSleep.addEventListener('click', function() { switchPanel('sleep'); });
+  cardHrv.addEventListener('click', function() { switchPanel('hrv'); });
 
-  [cardRunning, cardVo2max, cardStrength, cardTraining].forEach(function(card) {
+  [cardRunning, cardVo2max, cardStrength, cardTraining, cardBattery, cardReadiness, cardSleep, cardHrv].forEach(function(card) {
     card.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();

@@ -6,6 +6,7 @@ COPY pyproject.toml .
 RUN pip install --no-cache-dir .
 
 COPY shared/ shared/
+COPY collectors/ collectors/
 COPY webhook/ webhook/
 
 RUN useradd -r -s /bin/false basin

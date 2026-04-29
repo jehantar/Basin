@@ -13,6 +13,8 @@ dependencies = [
     "uvicorn[standard]>=0.34,<1.0",
     "httpx>=0.28,<1.0",
     "click>=8.1,<9.0",
+    "garminconnect>=0.3,<1.0",
+    "polyline>=2.0,<3.0",
 ]
 
 [project.optional-dependencies]
