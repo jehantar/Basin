@@ -160,14 +160,21 @@ class GarminCollector(BaseCollector):
                 time.sleep(DAILY_METRIC_DELAY)
                 continue
 
+            # Extract highest/lowest from the time-series array if available
+            bb_values = [v[1] for v in (day_data.get("bodyBatteryValuesArray") or []) if v[1] is not None]
+            highest = max(bb_values) if bb_values else None
+            lowest = min(bb_values) if bb_values else None
+            start_val = bb_values[0] if bb_values else None
+            end_val = bb_values[-1] if bb_values else None
+
             rows.append({
                 "date": d,
-                "highest": _get(day_data, "bodyBatteryHighestValue") or _get(day_data, "charged"),
-                "lowest": _get(day_data, "bodyBatteryLowestValue") or _get(day_data, "drained"),
-                "start_of_day": _get(day_data, "bodyBatteryMostRecentValue"),
-                "end_of_day": _get(day_data, "bodyBatteryDynamicFeedbackEvent"),
-                "charged": _get(day_data, "bodyBatteryChargedValue") or _get(day_data, "charged"),
-                "drained": _get(day_data, "bodyBatteryDrainedValue") or _get(day_data, "drained"),
+                "highest": highest,
+                "lowest": lowest,
+                "start_of_day": start_val,
+                "end_of_day": end_val,
+                "charged": _get(day_data, "charged"),
+                "drained": _get(day_data, "drained"),
                 "raw_json": json.dumps(day_data),
             })
             time.sleep(DAILY_METRIC_DELAY)
