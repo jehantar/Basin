@@ -5,10 +5,10 @@ Personal data aggregator that collects fitness, financial, health, and investmen
 ## Architecture
 
 ```
-Local Machine                          VM (Docker)
-+-----------------+     SSH/SCP        +---------------------------+
-| Apple Health    | ──────────────────> | Collector (cron)          |
-| Hevy CSV        |                    |   HealthKit     XML parse |
+Garmin / Hevy / Banks                  VM (Docker)
++-----------------+                    +---------------------------+
+| Garmin Connect  | ──── API ────────> | Collector (cron)          |
+| Hevy CSV        | ──── drop folder > |   Garmin        Connect   |
 +-----------------+                    |   Hevy          CSV parse |
                                        |   Intervals.icu REST API  |
                                        |   Strava        OAuth API |
@@ -20,6 +20,7 @@ Local Machine                          VM (Docker)
                                        |   /dashboard/finance      |
                                        |   /dashboard/investments  |
                                        |   /dashboard/system       |
+                                       |   /garmin/sync (on-demand)|
                                        |   /strava/auth (OAuth)    |
                                        |   /teller/enroll          |
                                        +---------------------------+
@@ -31,16 +32,16 @@ Local Machine                          VM (Docker)
 
 | Collector | Source | Schedule | Data |
 |-----------|--------|----------|------|
-| HealthKit | Apple Health XML export | Daily 6:05 AM UTC | Metrics (VO2max, weight, HR, body fat) + workouts |
+| Garmin | Garmin Connect API | Daily 6:20 AM UTC + on-demand | Health metrics (steps, HR, VO2max, stress, SpO2), sleep, Body Battery, HRV, Training Readiness, activities with splits + GPS |
 | Hevy | CSV drop folder | Daily 6:00 AM UTC | Strength training: exercises, sets, weight/reps |
-| Intervals.icu | REST API (Strava data) | Daily 6:10 AM UTC | Training load (CTL/ATL/TSB), pace curves, HR curves |
-| Strava | OAuth REST API | Daily 6:15 AM UTC | Activities with elevation, splits, GPS polylines, max HR, calories |
+| Intervals.icu | REST API | Daily 6:10 AM UTC | Training load (CTL/ATL/TSB), pace curves, HR curves |
+| Strava | OAuth REST API | Daily 6:15 AM UTC | Activities (passive fallback for splits/GPS enrichment) |
 | Teller | Bank API (mTLS) | Daily 7:00 AM UTC | Accounts, balances, transactions (posted + pending) |
 | Nasdaq | SHARADAR/SEP + Yahoo Finance | Daily 1:30 AM UTC | Daily stock prices (equities via SHARADAR, ETF benchmarks via Yahoo) |
 
 ## Dashboards
 
-- **Fitness** — Running stats (pace, distance, elevation, max HR, calories, per-mile splits with Leaflet/OpenStreetMap route maps), VO2max trends, strength volume/PRs, training load (CTL/ATL/TSB), pace curves, HR curves, training calendar
+- **Fitness** — Running stats (pace, distance, elevation, avg HR, calories, per-mile splits with Leaflet/OpenStreetMap route maps), VO2max trends, strength volume/PRs, training load (CTL/ATL/TSB), pace curves, HR curves, training calendar, Garmin recovery metrics (Body Battery, Training Readiness, Sleep Score + stages, HRV with baseline)
 - **Finance** — Monthly spend trends, category breakdowns, merchant analysis, per-card spending, pending transaction indicators
 - **Investments** — Stock watchlist performance tracker with:
   - Normalized return overlay chart with hover highlighting
@@ -84,6 +85,8 @@ Required environment variables:
 | Variable | Purpose |
 |----------|---------|
 | `BASIN_PG_PASSWORD` | PostgreSQL password |
+| `GARMIN_EMAIL` | Garmin Connect account email |
+| `GARMIN_PASSWORD` | Garmin Connect account password |
 | `TELLER_ACCESS_TOKEN` | Teller bank API credentials |
 | `TELLER_APP_ID` | Teller Connect application ID (for re-enrollment page) |
 | `TELEGRAM_BOT_TOKEN` | Telegram alert bot token |
@@ -94,7 +97,7 @@ Required environment variables:
 | `STRAVA_REDIRECT_URI` | Strava OAuth callback URL (e.g., `http://<host>:8075/strava/callback`) |
 | `INTERVALS_ICU_API_KEY` | Intervals.icu API key (training load, pace/HR curves) |
 | `INTERVALS_ICU_ATHLETE_ID` | Intervals.icu athlete ID (e.g., `i553742`) |
-| `HEALTHKIT_WEBHOOK_KEY` | Optional: HealthKit webhook authentication |
+| `HEALTHKIT_WEBHOOK_KEY` | Optional: HealthKit webhook authentication (disabled, returns 410) |
 | `TELLER_WEBHOOK_KEY` | Optional: Teller token save endpoint authentication |
 | `WEBHOOK_BIND` | Optional: webhook port override (default: 8075) |
 
@@ -122,19 +125,33 @@ docker compose exec -T postgres psql -U basin -d basin -f /docker-entrypoint-ini
 
 # Teller Connect re-enrollment tokens
 docker compose exec -T postgres psql -U basin -d basin -f /docker-entrypoint-initdb.d/005_teller_tokens.sql
+
+# Garmin schema (health metrics, activities, sleep, body battery, HRV, training readiness)
+docker compose exec -T postgres psql -U basin -d basin -f /docker-entrypoint-initdb.d/006_garmin.sql
 ```
 
-## Strava Integration
+## Garmin Integration
 
-Strava provides per-activity elevation, GPS routes, splits, max HR, and calories via OAuth.
+Garmin Connect is the primary source for health metrics and activities, replacing Apple Watch/HealthKit. Uses the `garminconnect` Python library (unofficial, session-based auth).
 
 ### Initial setup
 
-1. Create a Strava API application at https://www.strava.com/settings/api
-2. Set `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, and `STRAVA_REDIRECT_URI` in `.env`
-3. Visit `/strava/auth` on the webhook server to authorize — tokens are stored in `strava.tokens` and auto-refresh on expiry
+1. Add `GARMIN_EMAIL` and `GARMIN_PASSWORD` to `.env` (use `op://` references)
+2. Seed tokens by running the collector interactively (may require MFA):
+   ```bash
+   docker compose run --rm collector python -m collectors.garmin
+   ```
+3. Tokens are saved to `/data/garmin/tokens/` and auto-refresh on subsequent runs
 
-The collector runs daily at 6:15 AM UTC. It fetches new activities incrementally and enriches them with detailed splits and GPS polylines.
+The collector runs daily at 6:20 AM UTC. It syncs daily health summaries, sleep, Body Battery, HRV, Training Readiness, body composition, and activities (with splits + GPS polylines). A manual **Sync** button on the dashboard triggers on-demand collection via `POST /garmin/sync`.
+
+If Garmin revokes tokens (auth changes, etc.), the collector alerts via Telegram after 3 consecutive failures. Re-seed tokens by running the collector interactively again.
+
+### Strava (passive fallback)
+
+Strava remains as a passive fallback for activity enrichment. Garmin auto-syncs activities to Strava, and the Strava collector runs daily at 6:15 AM UTC. If a Garmin run is missing splits or GPS data, the dashboard falls back to Strava data via fuzzy timestamp matching.
+
+Setup: Create a Strava API application at https://www.strava.com/settings/api, set `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, and `STRAVA_REDIRECT_URI` in `.env`, then visit `/strava/auth` to authorize.
 
 ## Teller Re-enrollment
 
@@ -148,15 +165,15 @@ The enrollment page auto-loads the existing `enrollment_id` for seamless re-auth
 
 ## Syncing Health Data
 
-Export Apple Health or Hevy data to `~/Desktop/Basin Exports/`, then:
+**Garmin**: Data syncs automatically via the daily cron job, or on-demand via the **Sync** button on the fitness dashboard (`POST /garmin/sync`).
+
+**Hevy**: Export CSV data to `~/Desktop/Basin Exports/`, then:
 
 ```bash
-./scripts/sync-health.sh              # sync both
-./scripts/sync-health.sh health       # health only
-./scripts/sync-health.sh hevy         # hevy only
+./scripts/sync-health.sh hevy
 ```
 
-The script auto-extracts `export.zip`, uploads to the VM, and runs the collector. Subsequent syncs are incremental — only new records are processed.
+The script uploads to the VM and runs the collector. Subsequent syncs are incremental — only new records are processed.
 
 ## Managing Investments
 
@@ -206,12 +223,13 @@ pytest
 
 | Schema | Tables | Purpose |
 |--------|--------|---------|
-| `healthkit` | `metrics`, `workouts` | Apple Health fitness data |
+| `garmin` | `daily_summary`, `sleep`, `body_battery`, `hrv`, `training_readiness`, `activities`, `body_composition` | Garmin health metrics, activities, recovery data |
+| `healthkit` | `metrics`, `workouts` | Historical Apple Health fitness data (pre-Garmin) |
 | `hevy` | `exercises`, `workouts`, `sets` | Strength training |
 | `teller` | `institutions`, `accounts`, `balances`, `transactions`, `tokens` | Banking + re-enrollment tokens |
 | `investments` | `watchlist`, `stock_groups`, `stock_group_members`, `daily_prices` | Stock watchlist and price history |
 | `intervals` | `daily_fitness`, `pace_curves`, `hr_curves` | Training load and performance curves |
-| `strava` | `tokens`, `activities` | Strava OAuth tokens and activity data (elevation, splits, GPS) |
+| `strava` | `tokens`, `activities` | Strava OAuth tokens and activity data (passive fallback) |
 | `basin` | `collector_runs`, `hevy_imports` | System tracking |
 
 ## Backups
