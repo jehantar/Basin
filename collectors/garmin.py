@@ -332,7 +332,7 @@ class GarminCollector(BaseCollector):
         ).scalar()
 
         start = (last_date + timedelta(days=1)) if last_date else (date.today() - timedelta(days=DEFAULT_LOOKBACK_DAYS))
-        end = date.today() - timedelta(days=1)  # Yesterday (today's data may be incomplete)
+        end = date.today()  # Include today; upsert will update with complete data tomorrow
 
         if start > end:
             return []
