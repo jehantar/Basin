@@ -1,4 +1,4 @@
-"""Garmin Connect collector — health metrics, activities, sleep, body battery, HRV, training readiness."""
+"""Garmin Connect collector — health metrics, activities, body battery, HRV, training readiness."""
 
 import json
 import logging
@@ -40,10 +40,6 @@ class GarminCollector(BaseCollector):
         client = self._get_client()
         total = 0
         total += self._collect_daily_summary(session, client)
-        total += self._collect_sleep(session, client)
-        total += self._collect_body_battery(session, client)
-        total += self._collect_hrv(session, client)
-        total += self._collect_training_readiness(session, client)
         total += self._collect_activities(session, client)
         total += self._collect_body_composition(session, client)
         return total
@@ -75,6 +71,16 @@ class GarminCollector(BaseCollector):
                 time.sleep(DAILY_METRIC_DELAY)
                 continue
 
+            # VO2 Max comes from a separate endpoint, not get_stats()
+            vo2max_val = None
+            try:
+                max_metrics = client.get_max_metrics(d.isoformat())
+                if max_metrics and isinstance(max_metrics, list):
+                    generic = (max_metrics[0] or {}).get("generic") or {}
+                    vo2max_val = generic.get("vo2MaxPreciseValue") or generic.get("vo2MaxValue")
+            except Exception:
+                pass
+
             rows.append({
                 "date": d,
                 "total_steps": _get(data, "totalSteps"),
@@ -89,7 +95,7 @@ class GarminCollector(BaseCollector):
                     _get(data, "moderateIntensityMinutes"),
                     _get(data, "vigorousIntensityMinutes"),
                 ),
-                "vo2max_running": _get(data, "vo2MaxValue"),
+                "vo2max_running": vo2max_val,
                 "respiration_avg": _get(data, "averageRespirationRate") or _get(data, "avgWakingRespirationValue"),
                 "spo2_avg": _get(data, "averageSpo2"),
                 "raw_json": json.dumps(data),
@@ -98,164 +104,6 @@ class GarminCollector(BaseCollector):
 
         count = bulk_upsert(session, "garmin.daily_summary", rows, conflict_columns=["date"])
         logger.info(f"daily_summary: {count} rows upserted")
-        return count
-
-    def _collect_sleep(self, session, client: Garmin) -> int:
-        """Sleep score and stage breakdown."""
-        dates = self._dates_to_fetch(session, "garmin.sleep")
-        if not dates:
-            logger.info("sleep: up to date")
-            return 0
-
-        rows = []
-        for d in dates:
-            try:
-                data = client.get_sleep_data(d.isoformat())
-            except Exception as e:
-                logger.warning(f"sleep {d}: {e}")
-                time.sleep(DAILY_METRIC_DELAY)
-                continue
-
-            daily = data.get("dailySleepDTO", {}) if data else {}
-            score_data = data.get("sleepScores", {}) if data else {}
-
-            rows.append({
-                "date": d,
-                "sleep_score": _get(score_data, "overall", "value") or _get(score_data, "totalScore", "value"),
-                "total_sleep_sec": _get(daily, "sleepTimeInSeconds"),
-                "deep_sleep_sec": _get(daily, "deepSleepSeconds"),
-                "light_sleep_sec": _get(daily, "lightSleepSeconds"),
-                "rem_sleep_sec": _get(daily, "remSleepSeconds"),
-                "awake_sec": _get(daily, "awakeSleepSeconds"),
-                "avg_spo2": _get(daily, "averageSpO2Value"),
-                "avg_respiration": _get(daily, "averageRespirationValue"),
-                "body_battery_change": _get(daily, "bodyBatteryChange"),
-                "raw_json": json.dumps(data),
-            })
-            time.sleep(DAILY_METRIC_DELAY)
-
-        count = bulk_upsert(session, "garmin.sleep", rows, conflict_columns=["date"])
-        logger.info(f"sleep: {count} rows upserted")
-        return count
-
-    def _collect_body_battery(self, session, client: Garmin) -> int:
-        """Body battery daily high/low/charge/drain."""
-        dates = self._dates_to_fetch(session, "garmin.body_battery")
-        if not dates:
-            logger.info("body_battery: up to date")
-            return 0
-
-        rows = []
-        for d in dates:
-            try:
-                data = client.get_body_battery(d.isoformat())
-            except Exception as e:
-                logger.warning(f"body_battery {d}: {e}")
-                time.sleep(DAILY_METRIC_DELAY)
-                continue
-
-            # get_body_battery returns a list; find the entry for this date
-            day_data = _find_date_entry(data, d) if isinstance(data, list) else data
-            if not day_data:
-                time.sleep(DAILY_METRIC_DELAY)
-                continue
-
-            # Extract highest/lowest from the time-series array if available
-            bb_values = [v[1] for v in (day_data.get("bodyBatteryValuesArray") or []) if v[1] is not None]
-            highest = max(bb_values) if bb_values else None
-            lowest = min(bb_values) if bb_values else None
-            start_val = bb_values[0] if bb_values else None
-            end_val = bb_values[-1] if bb_values else None
-
-            rows.append({
-                "date": d,
-                "highest": highest,
-                "lowest": lowest,
-                "start_of_day": start_val,
-                "end_of_day": end_val,
-                "charged": _get(day_data, "charged"),
-                "drained": _get(day_data, "drained"),
-                "raw_json": json.dumps(day_data),
-            })
-            time.sleep(DAILY_METRIC_DELAY)
-
-        count = bulk_upsert(session, "garmin.body_battery", rows, conflict_columns=["date"])
-        logger.info(f"body_battery: {count} rows upserted")
-        return count
-
-    def _collect_hrv(self, session, client: Garmin) -> int:
-        """Nightly HRV with baseline."""
-        dates = self._dates_to_fetch(session, "garmin.hrv")
-        if not dates:
-            logger.info("hrv: up to date")
-            return 0
-
-        rows = []
-        for d in dates:
-            try:
-                data = client.get_hrv_data(d.isoformat())
-            except Exception as e:
-                logger.warning(f"hrv {d}: {e}")
-                time.sleep(DAILY_METRIC_DELAY)
-                continue
-
-            if not data:
-                time.sleep(DAILY_METRIC_DELAY)
-                continue
-
-            summary = data.get("hrvSummary", {}) if data else {}
-            baseline = data.get("baseline", {}) or data.get("startTimestampLocal", {})
-
-            rows.append({
-                "date": d,
-                "weekly_avg_ms": _get(summary, "weeklyAvg"),
-                "last_night_avg_ms": _get(summary, "lastNightAvg"),
-                "last_night_5min_high_ms": _get(summary, "lastNight5MinHigh"),
-                "baseline_low_ms": _get(baseline, "lowUpper") or _get(summary, "baselineLowUpper"),
-                "baseline_upper_ms": _get(baseline, "balancedLow") or _get(summary, "baselineBalancedLow"),
-                "status": _get(summary, "status") or _get(data, "status"),
-                "raw_json": json.dumps(data),
-            })
-            time.sleep(DAILY_METRIC_DELAY)
-
-        count = bulk_upsert(session, "garmin.hrv", rows, conflict_columns=["date"])
-        logger.info(f"hrv: {count} rows upserted")
-        return count
-
-    def _collect_training_readiness(self, session, client: Garmin) -> int:
-        """Training readiness score and sub-components."""
-        dates = self._dates_to_fetch(session, "garmin.training_readiness")
-        if not dates:
-            logger.info("training_readiness: up to date")
-            return 0
-
-        rows = []
-        for d in dates:
-            try:
-                data = client.get_training_readiness(d.isoformat())
-            except Exception as e:
-                logger.warning(f"training_readiness {d}: {e}")
-                time.sleep(DAILY_METRIC_DELAY)
-                continue
-
-            if not data:
-                time.sleep(DAILY_METRIC_DELAY)
-                continue
-
-            rows.append({
-                "date": d,
-                "score": _get(data, "score") or _get(data, "trainingReadinessScore"),
-                "level": _get(data, "level") or _get(data, "trainingReadinessLevel"),
-                "sleep_score": _get(data, "sleepScore") or _get(data, "sleepScoreValue"),
-                "recovery_score": _get(data, "recoveryScore") or _get(data, "recoveryScoreValue"),
-                "training_load_score": _get(data, "trainingLoadScore") or _get(data, "acuteTrainingLoadScore"),
-                "hrv_score": _get(data, "hrvScore") or _get(data, "hrvStatusScore"),
-                "raw_json": json.dumps(data),
-            })
-            time.sleep(DAILY_METRIC_DELAY)
-
-        count = bulk_upsert(session, "garmin.training_readiness", rows, conflict_columns=["date"])
-        logger.info(f"training_readiness: {count} rows upserted")
         return count
 
     # ------------------------------------------------------------------

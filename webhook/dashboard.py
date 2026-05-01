@@ -147,9 +147,14 @@ def get_running_data(start: str | None = None, end: str | None = None):
             if not polyline and strava:
                 polyline = strava[7]
 
+            # Strip Garmin prefix (Location - Plan - Name → Name)
+            name = row[1] or ""
+            if " - " in name:
+                name = name.rsplit(" - ", 1)[-1].strip()
+
             runs.append({
                 "date": str(row[3]),
-                "name": row[1],
+                "name": name,
                 "avg_speed_mph": avg_speed_mph,
                 "duration_min": duration_min,
                 "distance_mi": distance_mi,
@@ -599,120 +604,3 @@ def get_hr_curve():
 # ------------------------------------------------------------------
 
 
-@router.get("/api/fitness/body-battery")
-def get_body_battery(start: str | None = None, end: str | None = None):
-    """Garmin Body Battery daily data."""
-    start_date, end_date = _parse_date_range(start, end)
-
-    with get_session() as session:
-        rows = session.execute(text("""
-            SELECT date, highest, lowest, start_of_day, end_of_day, charged, drained
-            FROM garmin.body_battery
-            WHERE date BETWEEN :start AND :end
-            ORDER BY date
-        """), {"start": start_date, "end": end_date}).fetchall()
-
-        days = [{
-            "date": str(r[0]),
-            "highest": r[1],
-            "lowest": r[2],
-            "start_of_day": r[3],
-            "end_of_day": r[4],
-            "charged": r[5],
-            "drained": r[6],
-        } for r in rows]
-
-        latest = days[-1] if days else {}
-
-    return {**_response_metadata(start_date, end_date), "days": days, "latest": latest}
-
-
-@router.get("/api/fitness/sleep")
-def get_sleep_data(start: str | None = None, end: str | None = None):
-    """Garmin Sleep score and stage breakdown."""
-    start_date, end_date = _parse_date_range(start, end)
-
-    with get_session() as session:
-        rows = session.execute(text("""
-            SELECT date, sleep_score, total_sleep_sec,
-                   deep_sleep_sec, light_sleep_sec, rem_sleep_sec, awake_sec,
-                   avg_spo2, avg_respiration, body_battery_change
-            FROM garmin.sleep
-            WHERE date BETWEEN :start AND :end
-            ORDER BY date
-        """), {"start": start_date, "end": end_date}).fetchall()
-
-        days = [{
-            "date": str(r[0]),
-            "sleep_score": r[1],
-            "total_sleep_hrs": round(r[2] / 3600.0, 1) if r[2] else None,
-            "deep_sleep_hrs": round(r[3] / 3600.0, 1) if r[3] else None,
-            "light_sleep_hrs": round(r[4] / 3600.0, 1) if r[4] else None,
-            "rem_sleep_hrs": round(r[5] / 3600.0, 1) if r[5] else None,
-            "awake_hrs": round(r[6] / 3600.0, 1) if r[6] else None,
-            "avg_spo2": r[7],
-            "avg_respiration": r[8],
-            "body_battery_change": r[9],
-        } for r in rows]
-
-        latest = days[-1] if days else {}
-
-    return {**_response_metadata(start_date, end_date), "days": days, "latest": latest}
-
-
-@router.get("/api/fitness/hrv")
-def get_hrv_data(start: str | None = None, end: str | None = None):
-    """Garmin HRV nightly data with baseline."""
-    start_date, end_date = _parse_date_range(start, end)
-
-    with get_session() as session:
-        rows = session.execute(text("""
-            SELECT date, weekly_avg_ms, last_night_avg_ms, last_night_5min_high_ms,
-                   baseline_low_ms, baseline_upper_ms, status
-            FROM garmin.hrv
-            WHERE date BETWEEN :start AND :end
-            ORDER BY date
-        """), {"start": start_date, "end": end_date}).fetchall()
-
-        days = [{
-            "date": str(r[0]),
-            "weekly_avg_ms": r[1],
-            "last_night_avg_ms": r[2],
-            "last_night_5min_high_ms": r[3],
-            "baseline_low_ms": r[4],
-            "baseline_upper_ms": r[5],
-            "status": r[6],
-        } for r in rows]
-
-        latest = days[-1] if days else {}
-
-    return {**_response_metadata(start_date, end_date), "days": days, "latest": latest}
-
-
-@router.get("/api/fitness/training-readiness")
-def get_training_readiness(start: str | None = None, end: str | None = None):
-    """Garmin Training Readiness score and sub-components."""
-    start_date, end_date = _parse_date_range(start, end)
-
-    with get_session() as session:
-        rows = session.execute(text("""
-            SELECT date, score, level,
-                   sleep_score, recovery_score, training_load_score, hrv_score
-            FROM garmin.training_readiness
-            WHERE date BETWEEN :start AND :end
-            ORDER BY date
-        """), {"start": start_date, "end": end_date}).fetchall()
-
-        days = [{
-            "date": str(r[0]),
-            "score": r[1],
-            "level": r[2],
-            "sleep_score": r[3],
-            "recovery_score": r[4],
-            "training_load_score": r[5],
-            "hrv_score": r[6],
-        } for r in rows]
-
-        latest = days[-1] if days else {}
-
-    return {**_response_metadata(start_date, end_date), "days": days, "latest": latest}

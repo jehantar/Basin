@@ -375,6 +375,7 @@
   .table-wrapper::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
 
   .data-table {
+    width: 100%;
     min-width: 600px;
     border-collapse: collapse;
     font-size: 0.75rem;
@@ -716,6 +717,7 @@
       <button class="preset-btn" data-months="3" tabindex="0">3M</button>
       <button class="preset-btn" data-months="6" tabindex="0">6M</button>
       <button class="preset-btn" data-months="12" tabindex="0">1Y</button>
+      <button class="preset-btn" data-months="-1" tabindex="0">YTD</button>
       <button class="preset-btn" data-months="0" tabindex="0">All</button>
       <span class="filters-sep">|</span>
       <input type="date" class="date-input" id="startDate" tabindex="0" aria-label="Start date">
@@ -965,12 +967,13 @@
       var m = parseInt(b.getAttribute('data-months'), 10);
       b.classList.toggle('active', m === months);
     });
+    endInput.value = isoToday();
     if (months === 0) {
       startInput.value = '';
-      endInput.value = isoToday();
+    } else if (months === -1) {
+      startInput.value = new Date().getFullYear() + '-01-01';
     } else {
       startInput.value = isoMonthsAgo(months);
-      endInput.value = isoToday();
     }
     loadAll();
   }
@@ -1418,6 +1421,7 @@
     var monthLabel = MONTH_NAMES[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
     title.textContent = monthLabel + ' — ' + txns.length + ' transactions';
     wrapper.style.display = 'block';
+    $('txnDrillActionHeader').textContent = 'Category';
 
     txns.forEach(function(t) {
       var tr = document.createElement('tr');
@@ -1428,6 +1432,7 @@
       var tdAmt = createEl('td', 'td-money', fmtMoney(t.amount));
       tr.appendChild(tdAmt);
       tr.appendChild(createEl('td', null, t.card || '---'));
+      tr.appendChild(createEl('td', null, capitalize(t.category || '---')));
       tbody.appendChild(tr);
     });
 
