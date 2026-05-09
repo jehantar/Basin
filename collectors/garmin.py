@@ -58,6 +58,15 @@ class GarminCollector(BaseCollector):
     def _collect_daily_summary(self, session, client: Garmin) -> int:
         """Daily stats: steps, calories, HR, VO2, stress, SpO2, etc."""
         dates = self._dates_to_fetch(session, "garmin.daily_summary")
+
+        # Re-fetch recent days where VO2 Max is NULL (Garmin computes it
+        # after a run, but the row may already exist from an earlier sync)
+        vo2_backfill = session.execute(
+            text("SELECT date FROM garmin.daily_summary WHERE vo2max_running IS NULL AND date >= :cutoff"),
+            {"cutoff": date.today() - timedelta(days=7)},
+        ).scalars().all()
+        dates = sorted(set(dates) | set(vo2_backfill))
+
         if not dates:
             logger.info("daily_summary: up to date")
             return 0
